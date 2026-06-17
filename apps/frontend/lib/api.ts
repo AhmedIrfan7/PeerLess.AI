@@ -119,6 +119,36 @@ export const reviewFinding = (id: string, action: "approve" | "reject", note?: s
 export const healthCheck = () =>
   request<{ status: string; llm_available: boolean; db: string; redis: string }>("/healthz");
 
+// ── Export ────────────────────────────────────────────────────────────────────
+
+export async function downloadReportPdf(reportId: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${BACKEND_URL}/api/v1/reports/${reportId}/export`);
+  } catch (err) {
+    throw new NetworkError(err);
+  }
+  if (!response.ok) {
+    let code = "export_error";
+    let message = `Export failed (HTTP ${response.status})`;
+    try {
+      const body = await response.json();
+      code = body?.error?.code ?? code;
+      message = body?.error?.message ?? message;
+    } catch { /* ignore */ }
+    throw new ApiError(response.status, code, message);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `peerless_report_${reportId.slice(0, 8)}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type PaperStatus = "uploaded" | "parsing" | "parsed" | "parse_failed";

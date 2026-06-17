@@ -28,6 +28,8 @@ dependencies = [
     # Scientific computing (GRIM, statcheck)
     "numpy>=1.26.0",
     "scipy>=1.13.0",
+    # PDF generation
+    "reportlab>=4.2.0",
     # Validation
     "pydantic>=2.7.0",
     "pydantic-settings>=2.2.0",

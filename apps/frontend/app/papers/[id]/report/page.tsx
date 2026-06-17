@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { getReport, reviewFinding, ReportResponse, FindingResponse, NetworkError, ApiError } from "@/lib/api";
+import { getReport, reviewFinding, downloadReportPdf, ReportResponse, FindingResponse, NetworkError, ApiError } from "@/lib/api";
 import { DISCLAIMER_SHORT, AI_SUMMARY_NOTICE } from "@/lib/legal";
 
 const SEVERITY_STYLES: Record<string, { badge: string; border: string }> = {
@@ -97,6 +97,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
   const reportId = searchParams.get("rid");
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!reportId) { setError("No report ID provided."); return; }
@@ -118,6 +119,19 @@ export default function ReportPage({ params }: { params: { id: string } }) {
     poll();
     return () => { stopped = true; };
   }, [reportId]);
+
+  async function handleDownload() {
+    if (!reportId) return;
+    try {
+      setDownloading(true);
+      await downloadReportPdf(reportId);
+    } catch (e) {
+      if (e instanceof ApiError) setError(e.message);
+      else setError("Download failed. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   async function handleReview(findingId: string, action: "approve" | "reject", note?: string) {
     try {
@@ -169,13 +183,25 @@ export default function ReportPage({ params }: { params: { id: string } }) {
       <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h1 className="text-lg font-semibold text-slate-800">Analysis Report</h1>
-          <span className={`text-sm font-medium px-3 py-1 rounded-full ${
-            report.overall_confidence === "high" ? "bg-green-100 text-green-700" :
-            report.overall_confidence === "medium" ? "bg-amber-100 text-amber-700" :
-            "bg-red-100 text-red-700"
-          }`}>
-            Overall confidence: {report.overall_confidence}
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-sm font-medium px-3 py-1 rounded-full ${
+              report.overall_confidence === "high" ? "bg-green-100 text-green-700" :
+              report.overall_confidence === "medium" ? "bg-amber-100 text-amber-700" :
+              "bg-red-100 text-red-700"
+            }`}>
+              Overall confidence: {report.overall_confidence}
+            </span>
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg hover:bg-slate-700 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd"/>
+              </svg>
+              {downloading ? "Exporting…" : "Download PDF"}
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-slate-400">
           <span>{report.findings.length} finding(s)</span>
