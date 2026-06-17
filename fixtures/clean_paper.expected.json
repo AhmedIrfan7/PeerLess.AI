@@ -1,0 +1,13 @@
+{
+  "fixture": "clean_paper",
+  "description": "Well-written RCT with pre-registration and data sharing. Should produce zero medium/high findings.",
+  "expected_findings": [
+    {
+      "agent": "plain_language_summary",
+      "severity_at_most": "info",
+      "must_exist": true,
+      "includes_terms": ["summary", "AI"]
+    }
+  ],
+  "must_not_have_severity": ["high"]
+}

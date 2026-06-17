@@ -15,12 +15,34 @@ This directory contains the Python 3.11 + FastAPI backend for PEERLESS.AI.
 - `src/peerless/main.py` — FastAPI application entry point
 - `tests/` — pytest test suite
 
-## Running Locally
+## Build system
+
+Uses **hatchling** (via `pyproject.toml`). Install all dependencies:
 
 ```bash
-# Via Docker Compose (recommended)
-docker compose up backend
+pip install fastapi "uvicorn[standard]" pydantic pydantic-settings structlog \
+  httpx python-multipart slowapi sqlalchemy "sqlalchemy[asyncio]" asyncpg \
+  alembic redis pymupdf scipy numpy langdetect reportlab rapidfuzz \
+  google-generativeai langgraph
+```
 
-# Or directly (requires postgres, redis running)
-uv run uvicorn peerless.main:app --reload --port 8000
+## Running locally
+
+```bash
+# Requires postgres, redis running (see docker-compose.yml at repo root)
+PYTHONPATH=src uvicorn peerless.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Health check: `curl http://localhost:8000/healthz`
+
+## Database migrations
+
+```bash
+PYTHONPATH=src alembic upgrade head
+```
+
+## Tests
+
+```bash
+PYTHONPATH=src pytest tests/ -q
 ```

@@ -1,0 +1,13 @@
+{
+  "fixture": "bad_citation",
+  "description": "Reference 3 contains DOI 10.9999/this-doi-does-not-exist which will not resolve in Crossref.",
+  "expected_findings": [
+    {
+      "agent": "citation_verifier",
+      "severity_at_least": "low",
+      "must_exist": true,
+      "includes_terms": ["unresolved", "DOI", "10.9999"]
+    }
+  ],
+  "notes": "The other two DOIs (10.1177/2167702617723376 and 10.1007/s10964-014-0173-8) should resolve successfully."
+}

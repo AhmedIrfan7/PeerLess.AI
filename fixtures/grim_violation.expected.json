@@ -1,0 +1,13 @@
+{
+  "fixture": "grim_violation",
+  "description": "Survey with M=3.7, n=11 on a 1-5 integer scale. 3.7 is GRIM-impossible for n=11.",
+  "expected_findings": [
+    {
+      "agent": "statistical_integrity",
+      "severity_at_least": "medium",
+      "must_exist": true,
+      "includes_terms": ["GRIM", "mean", "impossible"]
+    }
+  ],
+  "notes": "round(3.7 * 11) = 41; 41/11 = 3.727..., not 3.7. Nearest valid means: 40/11=3.636 or 41/11=3.727."
+}

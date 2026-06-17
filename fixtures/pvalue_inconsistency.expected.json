@@ -1,0 +1,13 @@
+{
+  "fixture": "pvalue_inconsistency",
+  "description": "Reports t(18)=2.40, p<.001. Recomputed two-sided p = 2*(1-t.cdf(2.40,18)) ≈ 0.0273, not <.001.",
+  "expected_findings": [
+    {
+      "agent": "statistical_integrity",
+      "severity_at_least": "high",
+      "must_exist": true,
+      "includes_terms": ["p-value", "recomputed", "inconsistent"]
+    }
+  ],
+  "notes": "The disagreement crosses the 0.05 threshold direction-wise (reported <.001, actual ~.027). Severity=high per spec."
+}
