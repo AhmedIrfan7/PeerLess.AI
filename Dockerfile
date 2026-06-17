@@ -14,4 +14,4 @@ ENV PYTHONPATH=/app/src
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python -m alembic upgrade head && python -m uvicorn peerless.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "python -m alembic upgrade head; python -m uvicorn peerless.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
