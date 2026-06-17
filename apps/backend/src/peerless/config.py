@@ -20,6 +20,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        populate_by_name=True,
     )
 
     # ── App ───────────────────────────────────────────────────────────────────
@@ -34,6 +35,8 @@ class Settings(BaseSettings):
     groq_model_smart: str = "llama-3.3-70b-versatile"
 
     # ── Database ──────────────────────────────────────────────────────────────
+    # Railway provides DATABASE_URL directly; individual vars used for local dev
+    database_url_override: str = Field(default="", alias="database_url")  # Railway sets DATABASE_URL
     postgres_host: str = "localhost"
     postgres_port: int = 5433
     postgres_db: str = "peerless"
@@ -41,6 +44,8 @@ class Settings(BaseSettings):
     postgres_password: str = "changeme_strong_password"
 
     # ── Redis ─────────────────────────────────────────────────────────────────
+    # Railway provides REDIS_URL directly; individual vars used for local dev
+    redis_url_override: str = Field(default="", alias="redis_url")  # Railway sets REDIS_URL
     redis_host: str = "localhost"
     redis_port: int = 6380
     redis_password: str = ""
@@ -89,6 +94,11 @@ class Settings(BaseSettings):
     # ── Computed properties ───────────────────────────────────────────────────
     @property
     def database_url(self) -> str:
+        if self.database_url_override:
+            # Railway gives postgres:// — convert to asyncpg driver
+            return self.database_url_override.replace(
+                "postgres://", "postgresql+asyncpg://", 1
+            ).replace("postgresql://", "postgresql+asyncpg://", 1)
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
@@ -103,6 +113,8 @@ class Settings(BaseSettings):
 
     @property
     def redis_url(self) -> str:
+        if self.redis_url_override:
+            return self.redis_url_override
         if self.redis_password:
             return f"redis://:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
         return f"redis://{self.redis_host}:{self.redis_port}/0"
