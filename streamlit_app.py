@@ -228,6 +228,63 @@ def run_pls_agent(text: str) -> str:
     )
     return result or "_Summary generation failed. Check API key._"
 
+# ── Agent 4: Reproducibility Checker ─────────────────────────────────────────
+_REPRO_CHECKS = [
+    (
+        "Data Availability",
+        [r"data\s+avail", r"dataset\s+avail", r"zenodo", r"figshare", r"osf\.io",
+         r"dryad", r"raw\s+data", r"data\s+deposit", r"data\s+are\s+avail"],
+        "No data availability statement found. Readers cannot access or verify the raw data.",
+    ),
+    (
+        "Code / Software",
+        [r"code\s+avail", r"analysis\s+code", r"github\.com", r"gitlab\.com",
+         r"spss", r"r\s+version\s+\d", r"python\s+\d", r"matlab", r"stata"],
+        "No analysis code or software version mentioned. The analysis cannot be independently reproduced.",
+    ),
+    (
+        "Pre-registration",
+        [r"pre.?regist", r"osf\.io/\w", r"clinicaltrials\.gov", r"aspredicted",
+         r"registered\s+report", r"prior\s+to\s+data\s+collect"],
+        "No pre-registration found. Hypotheses may have been decided after seeing the data (HARKing).",
+    ),
+    (
+        "Power Analysis",
+        [r"power\s+anal", r"sample\s+size\s+calc", r"a\s+priori", r"g\*?power",
+         r"80%?\s+power", r"\.80\s+power", r"effect\s+size.*sampl"],
+        "No power analysis found. The study may be underpowered and results unreliable.",
+    ),
+    (
+        "Materials & Procedure Detail",
+        [r"stimul[ui]", r"questionnaire", r"instrument", r"appendix", r"supplementar",
+         r"items?\s+were", r"scale\s+consist", r"procedure\s+was", r"measure[sd]?\s+using"],
+        "Materials and procedure are not described in enough detail to replicate this study.",
+    ),
+]
+
+def run_reproducibility_agent(text: str) -> tuple[int, list[dict]]:
+    text_lower = text.lower()
+    score = 0
+    findings: list[dict] = []
+    for label, patterns, fail_msg in _REPRO_CHECKS:
+        passed = any(re.search(p, text_lower) for p in patterns)
+        if passed:
+            score += 1
+            findings.append(dict(
+                severity="info", agent="Reproducibility",
+                title=f"{label}: Present",
+                detail=f"Paper includes {label.lower()} information.",
+                flag=False,
+            ))
+        else:
+            findings.append(dict(
+                severity="medium", agent="Reproducibility",
+                title=f"{label}: Missing",
+                detail=fail_msg,
+                flag=True,
+            ))
+    return score, findings
+
 # ── Render finding card ───────────────────────────────────────────────────────
 def render_finding(f: dict):
     sev = f.get("severity", "info")
@@ -254,13 +311,14 @@ def main():
 |-------|--------|
 | Statistical Integrity | Always on |
 | Citation Verifier | Always on |
+| Reproducibility Checker | Always on |
 | Plain Language Summary | Needs API key |
 """)
         st.markdown("---")
         st.markdown("### How it works")
         st.markdown("""
 1. Upload a research paper PDF
-2. Three agents analyse it in parallel
+2. Four agents analyse it in parallel
 3. Review flagged concerns
 4. All findings require **human approval** before any action
 """)
@@ -281,6 +339,9 @@ def main():
 **Citation Verifier Agent**
 - Extracts all DOIs from the paper
 - Queries Crossref API to confirm each DOI resolves to a real publication
+
+**Reproducibility Checker Agent**
+- Scores the paper 0–5 across five dimensions: data availability, code availability, pre-registration, power analysis, and materials detail
 
 **Plain Language Summary Agent**
 - Uses Groq LLaMA-3.3 to generate a jargon-free summary for non-expert reviewers
@@ -307,31 +368,46 @@ def main():
 
     prog = st.progress(0, text="Running agents...")
 
-    with st.spinner("Agent 1/3 — Statistical Integrity (GRIM + statcheck)..."):
+    with st.spinner("Agent 1/4 — Statistical Integrity (GRIM + statcheck)..."):
         stat_findings = run_statistical_agent(text)
-    prog.progress(33, text="Agent 2/3 — Citation Verifier...")
+    prog.progress(25, text="Agent 2/4 — Citation Verifier...")
 
-    with st.spinner("Agent 2/3 — Citation Verifier (Crossref)..."):
+    with st.spinner("Agent 2/4 — Citation Verifier (Crossref)..."):
         cite_findings = run_citation_agent(text)
-    prog.progress(66, text="Agent 3/3 — Plain Language Summary...")
+    prog.progress(50, text="Agent 3/4 — Reproducibility Checker...")
 
-    with st.spinner("Agent 3/3 — Plain Language Summary (Groq LLaMA)..."):
+    with st.spinner("Agent 3/4 — Reproducibility Checker..."):
+        repro_score, repro_findings = run_reproducibility_agent(text)
+    prog.progress(75, text="Agent 4/4 — Plain Language Summary...")
+
+    with st.spinner("Agent 4/4 — Plain Language Summary (Groq LLaMA)..."):
         pls = run_pls_agent(text)
     prog.progress(100, text="Done")
 
-    all_findings = stat_findings + cite_findings
+    all_findings = stat_findings + cite_findings + repro_findings
     flagged = [f for f in all_findings if f.get("flag")]
     high = sum(1 for f in flagged if f["severity"] == "high")
     medium = sum(1 for f in flagged if f["severity"] == "medium")
 
+    if repro_score >= 4:
+        repro_color = "green"
+    elif repro_score >= 2:
+        repro_color = "orange"
+    else:
+        repro_color = "red"
+
     st.markdown("### Results")
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Total Findings", len(all_findings))
     c2.metric("Flagged Issues", len(flagged))
     c3.metric("High Severity", high)
     c4.metric("Medium Severity", medium)
+    c5.metric("Reproducibility", f"{repro_score}/5")
 
-    tab1, tab2, tab3 = st.tabs(["Statistical Integrity", "Citation Verifier", "Plain Language Summary"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Statistical Integrity", "Citation Verifier",
+        "Reproducibility", "Plain Language Summary"
+    ])
 
     with tab1:
         st.markdown(f"**{len(stat_findings)} finding(s)**")
@@ -345,6 +421,20 @@ def main():
             render_finding(f)
 
     with tab3:
+        filled = "█" * repro_score
+        empty = "░" * (5 - repro_score)
+        st.markdown(
+            f"#### Reproducibility Score: "
+            f"<span style='color:{repro_color};font-size:1.3em'><b>{repro_score}/5</b></span> "
+            f"&nbsp; <span style='letter-spacing:3px;font-size:1.2em'>{filled}{empty}</span>",
+            unsafe_allow_html=True,
+        )
+        st.caption("Checks: data availability · code availability · pre-registration · power analysis · materials detail")
+        st.markdown("")
+        for f in repro_findings:
+            render_finding(f)
+
+    with tab4:
         st.markdown("#### Plain Language Summary")
         st.markdown(pls)
 
