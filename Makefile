@@ -68,6 +68,12 @@ demo-backend:
 demo-frontend:
 	cd $(FRONTEND) && npm run dev
 
+demo-paper:
+	$(PYTHON) scripts/demo_upload.py --paper grim_violation
+
+demo-paper-pvalue:
+	$(PYTHON) scripts/demo_upload.py --paper pvalue_inconsistency
+
 demo-infra:
 	docker compose up -d
 	@echo "Waiting for Postgres..."

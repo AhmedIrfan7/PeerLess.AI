@@ -64,13 +64,18 @@ def _snippet(text: str, match: re.Match, radius: int = 80) -> str:
 
 def _p_str(raw: str, full_match: str) -> str:
     """Reconstruct 'p = .043' format from a bare digit group."""
+    raw = raw.rstrip(".,;)")  # strip trailing sentence punctuation
     op = "="
     for ch in full_match:
         if ch in "<>":
             op = ch
             break
-    val = raw if "." in raw else f"0.{raw}"
-    return f"p {op} {val}"
+    # leading-zero normalisation: ".021" -> "0.021"
+    if raw.startswith("."):
+        raw = "0" + raw
+    elif "." not in raw:
+        raw = "0." + raw
+    return f"p {op} {raw}"
 
 
 def extract_claims(text: str) -> list[dict[str, Any]]:

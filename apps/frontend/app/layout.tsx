@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Link from "next/link";
 import "./globals.css";
 import { DISCLAIMER_FULL, DISCLAIMER_SHORT } from "@/lib/legal";
 
@@ -19,12 +20,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="bg-white border-b border-slate-200 shadow-sm">
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-xl font-bold text-slate-800 tracking-tight">PEERLESS.AI</span>
+              <Link href="/" className="text-xl font-bold text-slate-800 tracking-tight hover:text-blue-700">
+                PEERLESS.AI
+              </Link>
               <span className="hidden sm:inline text-xs text-slate-500 border border-slate-300 rounded px-2 py-0.5">
                 Research Integrity
               </span>
             </div>
-            <span className="text-xs text-slate-500 max-w-xs hidden md:block">{DISCLAIMER_SHORT}</span>
+            <nav className="flex items-center gap-4">
+              <Link href="/" className="text-xs text-slate-500 hover:text-slate-800">Upload</Link>
+              <Link href="/health" className="text-xs text-slate-500 hover:text-slate-800">Status</Link>
+            </nav>
           </div>
           {/* Persistent disclaimer banner */}
           <div className="bg-amber-50 border-t border-amber-200 px-4 py-1.5">
