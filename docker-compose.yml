@@ -51,28 +51,29 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── n8n ───────────────────────────────────────────────────────────────────
+  # ─── n8n (prod profile only) ───────────────────────────────────────────────
   n8n:
+    profiles: ["prod"]
     image: n8nio/n8n:latest
     restart: unless-stopped
     environment:
       N8N_BASIC_AUTH_ACTIVE: "true"
       N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
-      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:?N8N_BASIC_AUTH_PASSWORD is required}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme_n8n_password}
       N8N_HOST: localhost
       N8N_PORT: 5678
       N8N_PROTOCOL: http
       WEBHOOK_URL: http://localhost:5678/
     volumes:
       - n8n_data:/home/node/.n8n
-      - ./n8n:/home/node/workflows:ro
     ports:
       - "${N8N_PORT:-5678}:5678"
     depends_on:
       - postgres
 
-  # ─── Backend (FastAPI) ─────────────────────────────────────────────────────
+  # ─── Backend (prod profile only — dev runs via uvicorn directly) ───────────
   backend:
+    profiles: ["prod"]
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
@@ -84,7 +85,6 @@ services:
       CHROMA_HOST: chromadb
     volumes:
       - ./storage:/app/storage
-      - ./apps/backend/src:/app/src
     ports:
       - "8000:8000"
     depends_on:
@@ -95,8 +95,9 @@ services:
       chromadb:
         condition: service_healthy
 
-  # ─── Frontend (Next.js) ────────────────────────────────────────────────────
+  # ─── Frontend (prod profile only — dev runs via npm run dev directly) ──────
   frontend:
+    profiles: ["prod"]
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
