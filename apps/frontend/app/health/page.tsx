@@ -53,9 +53,9 @@ export default function HealthPage() {
         { label: "Database (PostgreSQL)", status: dbOk ? "ok" : "error", detail: dbOk ? "connected" : h.db },
         { label: "Cache (Redis)", status: redisOk ? "ok" : "error", detail: redisOk ? "connected" : h.redis },
         {
-          label: "LLM (Grok / xAI)",
+          label: "LLM (Groq (LLaMA))",
           status: llmOk ? "ok" : "error",
-          detail: llmOk ? "API key present — Grok available" : "No API key — regex fallback active",
+          detail: llmOk ? "API key present — Groq (LLaMA) available" : "No API key — regex fallback active",
         },
       ]);
 
@@ -67,7 +67,7 @@ export default function HealthPage() {
         { label: "Backend API", status: "error", detail: "unreachable — is it running?" },
         { label: "Database (PostgreSQL)", status: "checking", detail: "—" },
         { label: "Cache (Redis)", status: "checking", detail: "—" },
-        { label: "LLM (Gemini)", status: "checking", detail: "—" },
+        { label: "LLM (Groq)", status: "checking", detail: "—" },
       ]);
       setOverall("down");
     }
@@ -115,7 +115,7 @@ export default function HealthPage() {
         <p className="font-mono bg-white rounded px-2 py-1 border border-slate-200">make demo-infra</p>
         <p className="font-mono bg-white rounded px-2 py-1 border border-slate-200">make demo-backend  <span className="text-slate-400"># terminal 1</span></p>
         <p className="font-mono bg-white rounded px-2 py-1 border border-slate-200">make demo-frontend  <span className="text-slate-400"># terminal 2</span></p>
-        <p className="mt-2">The <strong>LLM</strong> row shows orange if no Grok key is set. Statistical checks (GRIM + p-value) still run automatically via regex — the system is fully functional without a key.</p>
+        <p className="mt-2">The <strong>LLM</strong> row shows orange if no Groq key is set. Statistical checks (GRIM + p-value) still run automatically via regex — the system is fully functional without a key.</p>
       </div>
 
       <button onClick={check} className="w-full py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">

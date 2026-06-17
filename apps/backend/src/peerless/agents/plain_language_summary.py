@@ -7,7 +7,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-_SMART_MODEL = "grok-3"
+_SMART_MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM = """You are a science communicator writing for educated non-specialists.
 Write a 4-paragraph plain-language summary (300–500 words total) of a research paper.

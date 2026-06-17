@@ -15,7 +15,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-_XAI_BASE_URL = "https://api.x.ai/v1"
+_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 
 class LLMUnavailable(Exception):
@@ -91,7 +91,7 @@ async def _record_usage(
 
 def _make_client(api_key: str):
     from openai import AsyncOpenAI
-    return AsyncOpenAI(api_key=api_key, base_url=_XAI_BASE_URL)
+    return AsyncOpenAI(api_key=api_key, base_url=_GROQ_BASE_URL)
 
 
 async def generate_json(
@@ -109,7 +109,7 @@ async def generate_json(
     settings = get_settings()
 
     if not settings.llm_available:
-        raise LLMUnavailable("GROK_API_KEY is not configured.")
+        raise LLMUnavailable("GROQ_API_KEY is not configured.")
 
     await _check_cost_cap()
 
@@ -125,7 +125,7 @@ async def generate_json(
         except Exception:
             pass
 
-    client = _make_client(settings.grok_api_key)
+    client = _make_client(settings.groq_api_key)
 
     sys_msg = system
     if schema:
@@ -232,7 +232,7 @@ async def generate_text(
     settings = get_settings()
 
     if not settings.llm_available:
-        raise LLMUnavailable("GROK_API_KEY is not configured.")
+        raise LLMUnavailable("GROQ_API_KEY is not configured.")
 
     await _check_cost_cap()
 
@@ -247,7 +247,7 @@ async def generate_text(
         except Exception:
             pass
 
-    client = _make_client(settings.grok_api_key)
+    client = _make_client(settings.groq_api_key)
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": prompt},

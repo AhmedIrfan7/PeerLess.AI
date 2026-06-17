@@ -2,15 +2,21 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Project root is 4 levels above this file:
+# config.py → peerless/ → src/ → backend/ → apps/ → PeerlessAI/
+_PROJECT_ROOT = Path(__file__).parents[4]
+_ENV_FILES = [str(_PROJECT_ROOT / ".env"), ".env"]
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -22,10 +28,10 @@ class Settings(BaseSettings):
     secret_key: str = Field(default="dev-secret-change-in-production-min32!", description="Random secret, min 32 chars")
     version: str = "0.1.0"
 
-    # ── Grok (xAI) ───────────────────────────────────────────────────────────
-    grok_api_key: str = ""
-    grok_model_fast: str = "grok-3-fast"
-    grok_model_smart: str = "grok-3"
+    # ── Groq ─────────────────────────────────────────────────────────────────
+    groq_api_key: str = ""
+    groq_model_fast: str = "llama-3.1-8b-instant"
+    groq_model_smart: str = "llama-3.3-70b-versatile"
 
     # ── Database ──────────────────────────────────────────────────────────────
     postgres_host: str = "localhost"
@@ -104,8 +110,8 @@ class Settings(BaseSettings):
     @property
     def llm_available(self) -> bool:
         return bool(
-            self.grok_api_key
-            and self.grok_api_key not in ("your_grok_api_key_here", "")
+            self.groq_api_key
+            and self.groq_api_key not in ("your_groq_api_key_here", "")
         )
 
     @field_validator("log_level")
