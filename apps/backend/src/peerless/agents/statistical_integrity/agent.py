@@ -13,7 +13,7 @@ from peerless.verification.statcheck import (
 
 logger = structlog.get_logger(__name__)
 
-_FAST_MODEL = "gemini-2.5-flash"
+_FAST_MODEL = "grok-3-fast"
 
 EXTRACT_SCHEMA = {
     "type": "array",

@@ -1,4 +1,4 @@
-"""Plain Language Summary agent — 4-paragraph non-specialist summary via Gemini."""
+"""Plain Language Summary agent — 4-paragraph non-specialist summary via Grok."""
 from __future__ import annotations
 
 from typing import Any
@@ -7,7 +7,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-_SMART_MODEL = "gemini-2.5-pro"
+_SMART_MODEL = "grok-3"
 
 SYSTEM = """You are a science communicator writing for educated non-specialists.
 Write a 4-paragraph plain-language summary (300–500 words total) of a research paper.
@@ -53,18 +53,15 @@ async def run(parsed_paper: dict[str, Any], findings_so_far: list[dict], paper_i
     )
 
     try:
-        from peerless.agents.llm import LLMUnavailable, UpstreamMalformed, generate_json
-        import google.generativeai as genai
-        from peerless.config import get_settings
-        settings = get_settings()
-
-        if not settings.llm_available:
-            raise LLMUnavailable("no key")
-
-        genai.configure(api_key=settings.gemini_api_key)
-        model = genai.GenerativeModel(_SMART_MODEL)
-        response = model.generate_content(f"{SYSTEM}\n\n{prompt}")
-        summary_text = response.text.strip()
+        from peerless.agents.llm import LLMUnavailable, generate_text
+        summary_text = await generate_text(
+            model=_SMART_MODEL,
+            system=SYSTEM,
+            prompt=prompt,
+            max_tokens=1024,
+            agent_name="plain_language_summary",
+            use_cache=True,
+        )
 
     except Exception as exc:
         logger.warning("plain_language_summary.error", error=str(exc))
@@ -73,7 +70,7 @@ async def run(parsed_paper: dict[str, Any], findings_so_far: list[dict], paper_i
             "severity": "info",
             "confidence": 0.0,
             "title": "Plain-language summary unavailable",
-            "summary": "Could not generate summary. Please retry.",
+            "summary": "Could not generate summary (LLM unavailable or key not set).",
             "evidence": [],
             "requires_human_review": True,
             "status": "draft",
@@ -85,7 +82,7 @@ async def run(parsed_paper: dict[str, Any], findings_so_far: list[dict], paper_i
         "confidence": 0.9,
         "title": "Plain-language summary",
         "summary": summary_text,
-        "evidence": [{"kind": "text", "content": {"source": "gemini-2.5-pro", "word_count": len(summary_text.split())}}],
+        "evidence": [{"kind": "text", "content": {"source": _SMART_MODEL, "word_count": len(summary_text.split())}}],
         "requires_human_review": False,
         "status": "draft",
         "_is_summary": True,

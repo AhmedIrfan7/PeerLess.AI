@@ -22,10 +22,10 @@ class Settings(BaseSettings):
     secret_key: str = Field(default="dev-secret-change-in-production-min32!", description="Random secret, min 32 chars")
     version: str = "0.1.0"
 
-    # ── Gemini ────────────────────────────────────────────────────────────────
-    gemini_api_key: str = ""
-    gemini_model_fast: str = "gemini-2.5-flash"
-    gemini_model_smart: str = "gemini-2.5-pro"
+    # ── Grok (xAI) ───────────────────────────────────────────────────────────
+    grok_api_key: str = ""
+    grok_model_fast: str = "grok-3-fast"
+    grok_model_smart: str = "grok-3"
 
     # ── Database ──────────────────────────────────────────────────────────────
     postgres_host: str = "localhost"
@@ -58,8 +58,8 @@ class Settings(BaseSettings):
 
     # ── Cost controls ─────────────────────────────────────────────────────────
     max_daily_llm_cost_usd: float = 10.0
-    llm_pricing_fast_per_1k_tokens: float = 0.000075  # gemini-2.5-flash estimate
-    llm_pricing_smart_per_1k_tokens: float = 0.00125  # gemini-2.5-pro estimate
+    llm_pricing_fast_per_1k_tokens: float = 0.0006   # grok-3-fast estimate
+    llm_pricing_smart_per_1k_tokens: float = 0.003   # grok-3 estimate
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     allowed_cors_origins: list[str] = ["http://localhost:3000"]
@@ -104,8 +104,8 @@ class Settings(BaseSettings):
     @property
     def llm_available(self) -> bool:
         return bool(
-            self.gemini_api_key
-            and self.gemini_api_key not in ("your_gemini_api_key_here", "")
+            self.grok_api_key
+            and self.grok_api_key not in ("your_grok_api_key_here", "")
         )
 
     @field_validator("log_level")

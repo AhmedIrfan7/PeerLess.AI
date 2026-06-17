@@ -1,7 +1,7 @@
 # PEERLESS.AI — one-shot Windows setup script
 # Run from the project root: .\scripts\setup.ps1
 param(
-    [string]$GeminiKey = ""
+    [string]$GrokKey = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,11 +33,11 @@ if (-not (Test-Path $EnvFile)) {
     Write-Host "[3] .env already exists — skipping" -ForegroundColor Yellow
 }
 
-if ($GeminiKey) {
+if ($GrokKey) {
     $content = Get-Content $EnvFile -Raw
-    $content = $content -replace 'GEMINI_API_KEY=.*', "GEMINI_API_KEY=$GeminiKey"
+    $content = $content -replace 'GROK_API_KEY=.*', "GROK_API_KEY=$GrokKey"
     Set-Content $EnvFile $content -Encoding utf8
-    Write-Host "    Gemini API key written to .env" -ForegroundColor Green
+    Write-Host "    Grok API key written to .env" -ForegroundColor Green
 }
 
 # ── Frontend .env.local ────────────────────────────────────────────────────────
@@ -69,9 +69,9 @@ Write-Host "  4. Start frontend:        make demo-frontend   (Terminal 2)" -Fore
 Write-Host "  5. Open browser:          http://localhost:3000" -ForegroundColor Gray
 Write-Host "  6. Check status:          http://localhost:3000/health" -ForegroundColor Gray
 Write-Host ""
-if (-not $GeminiKey) {
-    Write-Host "TIP: No Gemini key provided. Statistical checks (GRIM + p-value)" -ForegroundColor Yellow
-    Write-Host "     still run via regex fallback. To enable Gemini:" -ForegroundColor Yellow
-    Write-Host "     .\scripts\setup.ps1 -GeminiKey YOUR_KEY_HERE" -ForegroundColor Yellow
+if (-not $GrokKey) {
+    Write-Host "TIP: No Grok key provided. Statistical checks (GRIM + p-value)" -ForegroundColor Yellow
+    Write-Host "     still run via regex fallback. To enable Grok (xAI):" -ForegroundColor Yellow
+    Write-Host "     .\scripts\setup.ps1 -GrokKey YOUR_KEY_HERE" -ForegroundColor Yellow
     Write-Host ""
 }

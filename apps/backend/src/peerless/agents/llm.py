@@ -1,15 +1,21 @@
-"""Shared Gemini LLM wrapper — caching, retries, cost cap, structured output."""
+"""Grok (xAI) LLM wrapper — caching, retries, cost cap, structured output.
+
+xAI exposes an OpenAI-compatible endpoint at https://api.x.ai/v1, so we use
+the openai SDK with a custom base_url.
+"""
 from __future__ import annotations
 
 import hashlib
 import json
 import time
 import uuid
-from typing import Any, Type
+from typing import Any
 
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+_XAI_BASE_URL = "https://api.x.ai/v1"
 
 
 class LLMUnavailable(Exception):
@@ -41,7 +47,6 @@ async def _get_redis():
 
 
 async def _check_cost_cap() -> float:
-    """Return today's total LLM cost. Raise LlmCostCapExceeded if over limit."""
     from peerless.config import get_settings
     from peerless.storage.database import AsyncSessionLocal
     from peerless.storage.models import LlmUsage
@@ -59,11 +64,17 @@ async def _check_cost_cap() -> float:
         total: float = float(result.scalar_one())
 
     if total >= settings.max_daily_llm_cost_usd:
-        raise LlmCostCapExceeded(f"Daily LLM cost cap ${settings.max_daily_llm_cost_usd} exceeded (spent ${total:.4f})")
+        raise LlmCostCapExceeded(
+            f"Daily LLM cost cap ${settings.max_daily_llm_cost_usd} exceeded "
+            f"(spent ${total:.4f})"
+        )
     return total
 
 
-async def _record_usage(request_id: str, agent: str, model: str, prompt_tokens: int, completion_tokens: int, cost: float) -> None:
+async def _record_usage(
+    request_id: str, agent: str, model: str,
+    prompt_tokens: int, completion_tokens: int, cost: float,
+) -> None:
     from peerless.storage.database import AsyncSessionLocal
     from peerless.storage.models import LlmUsage
     async with AsyncSessionLocal() as session:
@@ -78,6 +89,11 @@ async def _record_usage(request_id: str, agent: str, model: str, prompt_tokens: 
         await session.commit()
 
 
+def _make_client(api_key: str):
+    from openai import AsyncOpenAI
+    return AsyncOpenAI(api_key=api_key, base_url=_XAI_BASE_URL)
+
+
 async def generate_json(
     *,
     model: str,
@@ -88,12 +104,12 @@ async def generate_json(
     agent_name: str = "unknown",
     paper_id: str | None = None,
     use_cache: bool = True,
-) -> dict[str, Any]:
+) -> Any:
     from peerless.config import get_settings
     settings = get_settings()
 
     if not settings.llm_available:
-        raise LLMUnavailable("GEMINI_API_KEY is not configured.")
+        raise LLMUnavailable("GROK_API_KEY is not configured.")
 
     await _check_cost_cap()
 
@@ -109,75 +125,88 @@ async def generate_json(
         except Exception:
             pass
 
-    import google.generativeai as genai
-    genai.configure(api_key=settings.gemini_api_key)
+    client = _make_client(settings.grok_api_key)
 
-    full_prompt = f"{system}\n\n{prompt}"
+    sys_msg = system
     if schema:
-        full_prompt += f"\n\nRespond ONLY with valid JSON matching this schema: {json.dumps(schema)}"
+        sys_msg += "\n\nRespond ONLY with valid JSON. No markdown, no explanation."
 
-    gen_config = {"max_output_tokens": max_tokens}
+    messages = [
+        {"role": "system", "content": sys_msg},
+        {"role": "user", "content": prompt},
+    ]
     if schema:
-        gen_config["response_mime_type"] = "application/json"
+        messages[1]["content"] += f"\n\nJSON schema to follow:\n{json.dumps(schema)}"
 
-    gemini_model = genai.GenerativeModel(model, generation_config=gen_config)
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+    }
+    if schema:
+        kwargs["response_format"] = {"type": "json_object"}
 
     last_exc: Exception | None = None
+    t0 = time.time()
     for attempt in range(3):
         try:
-            t0 = time.time()
-            response = gemini_model.generate_content(full_prompt)
-            latency_ms = round((time.time() - t0) * 1000)
+            response = await client.chat.completions.create(**kwargs)
             break
         except Exception as exc:
             last_exc = exc
-            if "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc):
+            err_str = str(exc)
+            if "429" in err_str or "rate" in err_str.lower():
                 import asyncio
                 await asyncio.sleep(2 ** attempt)
                 continue
-            raise UpstreamUnavailable(str(exc)) from exc
+            raise UpstreamUnavailable(err_str) from exc
     else:
         raise UpstreamUnavailable(str(last_exc))
 
-    raw_text = response.text.strip()
+    latency_ms = round((time.time() - t0) * 1000)
+    raw_text = (response.choices[0].message.content or "").strip()
 
-    # Parse JSON
+    # Strip markdown code fences if the model wraps its JSON
+    if raw_text.startswith("```"):
+        lines = raw_text.split("\n")
+        raw_text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
     try:
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("```")[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
         result = json.loads(raw_text)
     except json.JSONDecodeError:
         # One retry with stricter instruction
         try:
-            retry_prompt = full_prompt + "\n\nYou MUST respond with ONLY valid JSON, no markdown, no explanation."
-            response2 = gemini_model.generate_content(retry_prompt)
-            raw2 = response2.text.strip()
-            if raw2.startswith("```"):
-                raw2 = raw2.split("```")[1]
-                if raw2.startswith("json"):
-                    raw2 = raw2[4:]
+            retry_messages = messages + [
+                {"role": "assistant", "content": raw_text},
+                {"role": "user", "content": "That was not valid JSON. Reply ONLY with the JSON object, no other text."},
+            ]
+            retry_kwargs = {**kwargs, "messages": retry_messages}
+            response2 = await client.chat.completions.create(**retry_kwargs)
+            raw2 = (response2.choices[0].message.content or "").strip()
             result = json.loads(raw2)
         except Exception as exc2:
-            raise UpstreamMalformed(f"LLM returned non-JSON after retry: {str(exc2)[:200]}") from exc2
+            raise UpstreamMalformed(
+                f"LLM returned non-JSON after retry: {str(exc2)[:200]}"
+            ) from exc2
 
-    # Estimate cost
-    try:
-        usage = response.usage_metadata
-        p_tokens = usage.prompt_token_count or 0
-        c_tokens = usage.candidates_token_count or 0
-    except Exception:
-        p_tokens, c_tokens = len(full_prompt) // 4, len(raw_text) // 4
+    usage = response.usage
+    p_tokens = usage.prompt_tokens if usage else len(str(messages)) // 4
+    c_tokens = usage.completion_tokens if usage else len(raw_text) // 4
 
-    per_1k = settings.llm_pricing_fast_per_1k_tokens if "flash" in model else settings.llm_pricing_smart_per_1k_tokens
+    is_fast = "fast" in model or "mini" in model
+    per_1k = (
+        settings.llm_pricing_fast_per_1k_tokens if is_fast
+        else settings.llm_pricing_smart_per_1k_tokens
+    )
     cost = (p_tokens + c_tokens) / 1000 * per_1k
     req_id = str(uuid.uuid4())[:8]
 
     await _record_usage(req_id, agent_name, model, p_tokens, c_tokens, cost)
-
-    logger.info("llm.call", agent=agent_name, model=model, prompt_tokens=p_tokens,
-                completion_tokens=c_tokens, cost_usd=round(cost, 6), cached=False, latency_ms=latency_ms)
+    logger.info(
+        "llm.call", agent=agent_name, model=model,
+        prompt_tokens=p_tokens, completion_tokens=c_tokens,
+        cost_usd=round(cost, 6), cached=False, latency_ms=latency_ms,
+    )
 
     if use_cache:
         try:
@@ -199,11 +228,77 @@ async def generate_text(
     agent_name: str = "unknown",
     use_cache: bool = True,
 ) -> str:
-    result = await generate_json(
-        model=model, system=system, prompt=prompt,
-        schema=None, max_tokens=max_tokens,
-        agent_name=agent_name, use_cache=use_cache,
+    from peerless.config import get_settings
+    settings = get_settings()
+
+    if not settings.llm_available:
+        raise LLMUnavailable("GROK_API_KEY is not configured.")
+
+    await _check_cost_cap()
+
+    key = _cache_key(model, system, prompt, None)
+    if use_cache:
+        try:
+            r = await _get_redis()
+            cached = await r.get(key)
+            await r.aclose()
+            if cached:
+                return cached
+        except Exception:
+            pass
+
+    client = _make_client(settings.grok_api_key)
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": prompt},
+    ]
+
+    last_exc: Exception | None = None
+    t0 = time.time()
+    for attempt in range(3):
+        try:
+            response = await client.chat.completions.create(
+                model=model, messages=messages, max_tokens=max_tokens,
+            )
+            break
+        except Exception as exc:
+            last_exc = exc
+            if "429" in str(exc) or "rate" in str(exc).lower():
+                import asyncio
+                await asyncio.sleep(2 ** attempt)
+                continue
+            raise UpstreamUnavailable(str(exc)) from exc
+    else:
+        raise UpstreamUnavailable(str(last_exc))
+
+    latency_ms = round((time.time() - t0) * 1000)
+    text = (response.choices[0].message.content or "").strip()
+
+    usage = response.usage
+    p_tokens = usage.prompt_tokens if usage else len(str(messages)) // 4
+    c_tokens = usage.completion_tokens if usage else len(text) // 4
+
+    is_fast = "fast" in model or "mini" in model
+    per_1k = (
+        settings.llm_pricing_fast_per_1k_tokens if is_fast
+        else settings.llm_pricing_smart_per_1k_tokens
     )
-    if isinstance(result, str):
-        return result
-    return json.dumps(result)
+    cost = (p_tokens + c_tokens) / 1000 * per_1k
+    req_id = str(uuid.uuid4())[:8]
+
+    await _record_usage(req_id, agent_name, model, p_tokens, c_tokens, cost)
+    logger.info(
+        "llm.call", agent=agent_name, model=model,
+        prompt_tokens=p_tokens, completion_tokens=c_tokens,
+        cost_usd=round(cost, 6), cached=False, latency_ms=latency_ms,
+    )
+
+    if use_cache:
+        try:
+            r = await _get_redis()
+            await r.setex(key, 7 * 86400, text)
+            await r.aclose()
+        except Exception:
+            pass
+
+    return text
