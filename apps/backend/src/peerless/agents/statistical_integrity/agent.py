@@ -58,8 +58,10 @@ async def run(parsed_paper: dict[str, Any], paper_id: str) -> list[dict[str, Any
         findings.append(_info_finding("No statistical claims detected", "No extractable text found for statistical analysis."))
         return findings
 
-    # Extract claims via Gemini
+    # Extract claims — try Gemini first, fall back to regex so GRIM/statcheck
+    # still run without an API key.
     claims: list[dict] = []
+    extraction_method = "llm"
     try:
         from peerless.agents.llm import LLMUnavailable, UpstreamMalformed, generate_json
         raw = await generate_json(
@@ -73,15 +75,29 @@ async def run(parsed_paper: dict[str, Any], paper_id: str) -> list[dict[str, Any
         )
         claims = raw if isinstance(raw, list) else []
     except LLMUnavailable:
-        findings.append(_info_finding("LLM unavailable", "Statistical claim extraction skipped — GEMINI_API_KEY not configured."))
-        return findings
+        extraction_method = "regex"
     except UpstreamMalformed:
-        findings.append(_info_finding("Claim extraction failed", "LLM returned malformed JSON; manual review recommended.", severity="low"))
-        return findings
+        extraction_method = "regex"
+        logger.warning("statistical_integrity.llm_malformed_using_regex")
     except Exception as exc:
-        logger.warning("statistical_integrity.extract_error", error=str(exc))
-        findings.append(_info_finding("Claim extraction error", str(exc)[:200], severity="low"))
-        return findings
+        extraction_method = "regex"
+        logger.warning("statistical_integrity.llm_error_using_regex", error=str(exc))
+
+    if extraction_method == "regex":
+        from peerless.verification.regex_extractor import extract_claims
+        claims = extract_claims(relevant)
+        if claims:
+            findings.append(_info_finding(
+                "Statistical claims extracted via pattern matching",
+                f"LLM unavailable; {len(claims)} statistical claim(s) found by regex. "
+                "GRIM and p-value checks proceeded automatically.",
+            ))
+        else:
+            findings.append(_info_finding(
+                "No statistical claims detected",
+                "No APA-format statistics found. LLM unavailable for deeper extraction.",
+            ))
+            return findings
 
     if not claims:
         findings.append(_info_finding("No statistical claims detected", "No statistical claims found in the paper."))
