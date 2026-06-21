@@ -1211,5 +1211,19 @@ def main():
 </div>
 """, unsafe_allow_html=True)
 
+    st.markdown("""
+<div style="margin-top:32px;padding-top:16px;border-top:1px solid #D6E8F4;
+            display:flex;align-items:center;gap:16px">
+  <span style="font-size:0.8rem;color:#9DBFCA">
+    Built by <strong style="color:#1565C0">Ahmed Irfan</strong>
+  </span>
+  <a href="https://github.com/AhmedIrfan7/PeerLess.AI" target="_blank"
+     style="font-size:0.8rem;color:#1565C0;text-decoration:none;font-weight:600;
+            border:1px solid #D6E8F4;border-radius:6px;padding:3px 10px;background:white">
+    GitHub
+  </a>
+</div>
+""", unsafe_allow_html=True)
+
 
 main()
