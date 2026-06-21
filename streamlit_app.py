@@ -285,6 +285,311 @@ def run_reproducibility_agent(text: str) -> tuple[int, list[dict]]:
             ))
     return score, findings
 
+# ── Agent 5: Methodology Auditor ─────────────────────────────────────────────
+_STUDY_DETECT = {
+    "RCT": [r"random(?:is|iz)ed\s+control", r"\bRCT\b", r"random(?:is|iz)ed\s+trial",
+            r"double.blind", r"triple.blind", r"placebo.control"],
+    "Meta-analysis / Systematic Review": [r"meta.anal", r"systematic\s+review", r"\bPRISMA\b",
+                                           r"pool(?:ed|ing)\s+effect", r"heterogeneity"],
+    "Observational": [r"\bcohort\b", r"case.control", r"cross.sectional", r"\bsurvey\b",
+                      r"longitudinal\s+study", r"prospective\s+stud", r"retrospective\s+stud"],
+    "Animal Study": [r"\bmice\b", r"\brats?\b", r"animal\s+(?:study|model|experiment)",
+                     r"\bARRIVE\b", r"in\s+vivo\s+(?:study|experiment)"],
+}
+_CONSORT = [
+    ("Eligibility criteria", [r"inclusion\s+crit", r"exclusion\s+crit", r"eligib\w+"]),
+    ("Randomization method", [r"random(?:is|iz)ation\s+method", r"computer.generat\w+\s+random",
+                               r"block\s+random", r"stratif\w+\s+random", r"random\s+number"]),
+    ("Blinding / masking", [r"\bblind\w*\b", r"\bmasked?\b", r"double.blind", r"open.label"]),
+    ("Primary outcome pre-specified", [r"primary\s+outcome", r"primary\s+endpoint", r"main\s+outcome"]),
+    ("Sample size calculation", [r"power\s+anal", r"sample\s+size\s+calc", r"a\s+priori"]),
+    ("CONSORT flow diagram", [r"\bCONSORT\b", r"flow\s+diagram", r"participant\s+flow"]),
+    ("Intent-to-treat analysis", [r"intent.to.treat", r"intention.to.treat", r"\bITT\b"]),
+]
+_STROBE = [
+    ("Study design stated", [r"cohort\s+study", r"case.control\s+study", r"cross.sectional\s+study"]),
+    ("Setting and time period", [r"study\s+setting", r"data\s+collect", r"between\s+\d{4}\s+and\s+\d{4}"]),
+    ("Participants described", [r"participant", r"eligib\w+\s+crit", r"recruit\w+\s+(?:from|via)"]),
+    ("Confounders addressed", [r"confounder", r"covariate", r"adjust\w+\s+for", r"control\w+\s+for"]),
+    ("Missing data handling", [r"missing\s+data", r"imputation", r"complete\s+case"]),
+]
+_PRISMA = [
+    ("PRISMA / systematic review flow", [r"\bPRISMA\b", r"flow\s+diagram", r"study\s+selection"]),
+    ("Database search strategy", [r"search\s+strateg", r"PubMed|Medline|EMBASE|Scopus"]),
+    ("Inclusion / exclusion criteria", [r"inclusion\s+crit", r"exclusion\s+crit"]),
+    ("Risk of bias assessment", [r"risk\s+of\s+bias", r"quality\s+assess", r"Cochrane", r"\bRoB\b"]),
+    ("Heterogeneity assessed", [r"heterogeneity", r"I.?2\s*=", r"Q\s+statistic"]),
+]
+_ARRIVE = [
+    ("Species / strain reported", [r"Sprague|Wistar|C57BL|BALB|nude", r"species", r"\bstrain\b"]),
+    ("Ethics / IACUC approval", [r"ethics\s+(?:approv|commit)", r"\bIACUC\b", r"institutional\s+animal"]),
+    ("Sample size justification", [r"power\s+anal", r"sample\s+size", r"animals?\s+per"]),
+    ("Randomization described", [r"random\w+\s+assign", r"random(?:is|iz)ation"]),
+    ("Blinding described", [r"blind\w*", r"masked?\b"]),
+]
+_GENERIC_AUDIT = [
+    ("Ethics / IRB approval", [r"\bIRB\b", r"ethics\s+(?:board|commit|approv)", r"Helsinki", r"informed\s+consent"]),
+    ("Conflict of interest disclosure", [r"conflict\s+of\s+interest", r"competing\s+interest", r"authors?\s+declare"]),
+    ("Data availability statement", [r"data\s+avail", r"zenodo", r"figshare", r"OSF"]),
+    ("Funding source disclosed", [r"fund\w+\s+(?:by|from)", r"support\w+\s+by\s+(?:a\s+)?grant"]),
+]
+
+def _detect_study_type(text: str) -> str:
+    for stype, patterns in _STUDY_DETECT.items():
+        if any(re.search(p, text, re.I) for p in patterns):
+            return stype
+    return "General"
+
+def run_methodology_agent(text: str) -> tuple[str, str, list[dict]]:
+    study_type = _detect_study_type(text)
+    checklist_map = {
+        "RCT": ("CONSORT", _CONSORT),
+        "Meta-analysis / Systematic Review": ("PRISMA", _PRISMA),
+        "Observational": ("STROBE", _STROBE),
+        "Animal Study": ("ARRIVE", _ARRIVE),
+        "General": ("Generic QC", _GENERIC_AUDIT),
+    }
+    std_name, checklist = checklist_map[study_type]
+    findings = []
+    for label, patterns in checklist:
+        found = any(re.search(p, text, re.I) for p in patterns)
+        findings.append(dict(
+            severity="info" if found else "medium",
+            agent="Methodology Auditor",
+            title=f"{label}: {'Present' if found else 'Missing'}",
+            detail=(f"Paper includes evidence of {label.lower()}." if found
+                    else f"No mention of {label.lower()} found. Required by {std_name} reporting standard."),
+            flag=not found,
+        ))
+    return study_type, std_name, findings
+
+
+# ── Agent 6: Replication Predictor ────────────────────────────────────────────
+_REPLICATION_FEATURES = [
+    ("Large sample (n ≥ 100)",
+     [r'\b[nN]\s*=\s*[1-9]\d{2,}\b', r'1[0-9]{2,}\s+(?:participant|subject|student|patient)'],
+     "Small samples inflate false-positive rates; larger samples replicate more reliably."),
+    ("Pre-registration present",
+     [r"pre.?regist", r"osf\.io/\w", r"clinicaltrials\.gov", r"aspredicted", r"prior\s+to\s+data\s+collect"],
+     "Pre-registration reduces HARKing (Hypothesizing After Results are Known)."),
+    ("Effect size reported",
+     [r"Cohen.?s\s+d\b", r"\bd\s*=\s*[\d.]+", r"eta.squared", r"omega.squared",
+      r"Hedges.?\s*g\b", r"\bAUC\b", r"odds\s+ratio"],
+     "Reporting effect sizes enables meta-analysis and replication power planning."),
+    ("Multiple-comparison correction",
+     [r"Bonferroni", r"\bHolm\b", r"\bFDR\b", r"false\s+discovery", r"Benjamini",
+      r"adjust\w+\s+for\s+multiple", r"familywise"],
+     "Without correction, multiple tests inflate the false-positive rate."),
+    ("Power analysis / sample size justification",
+     [r"power\s+anal", r"sample\s+size\s+calc", r"a\s+priori", r"G\*?Power", r"80%?\s+power"],
+     "A priori power analysis shows the study was designed to detect the reported effect."),
+    ("Open materials or code shared",
+     [r"github\.com", r"gitlab\.com", r"osf\.io", r"analysis\s+code", r"open\s+(?:data|material)",
+      r"zenodo", r"figshare", r"supplementar\w+\s+(?:code|data|material)"],
+     "Sharing code and data allows independent verification of the analysis."),
+    ("Confirmatory (not purely exploratory)",
+     [r"test\w+\s+the\s+hypothes", r"confirm\w+\s+(?:our|the)\s+hypothes",
+      r"(?:primary|main)\s+hypothesis\s+was", r"a\s+priori\s+hypothes"],
+     "Confirmatory studies with pre-specified hypotheses replicate more often than exploratory ones."),
+]
+
+def run_replication_agent(text: str) -> tuple[int, float, list[dict]]:
+    score = 0
+    findings = []
+    for label, patterns, rationale in _REPLICATION_FEATURES:
+        found = any(re.search(p, text, re.I) for p in patterns)
+        if found:
+            score += 1
+        findings.append(dict(
+            severity="info" if found else "low",
+            agent="Replication Predictor",
+            title=f"{label}: {'Present' if found else 'Not detected'}",
+            detail=rationale,
+            flag=not found,
+        ))
+    # Probability estimate: 0.20 base + up to 0.60 from features (based on OSC 2015 base rate)
+    prob = 0.20 + (score / len(_REPLICATION_FEATURES)) * 0.60
+    return score, round(prob, 2), findings
+
+
+# ── Agent 7: COI Detector ─────────────────────────────────────────────────────
+_COI_NO_CONFLICT = [
+    r"no\s+conflict\s+of\s+interest",
+    r"no\s+competing\s+interest",
+    r"authors?\s+declare\s+(?:that\s+)?(?:they\s+have\s+)?no",
+    r"declare\s+no\s+(?:financial\s+)?conflict",
+    r"nothing\s+to\s+disclose",
+    r"no\s+financial\s+(?:ties|interest|support)",
+]
+_COI_INDUSTRY_SIGNALS = [
+    (r"(?:funded|supported|sponsored)\s+by\s+[A-Z][a-zA-Z\s]{2,30}(?:Inc|Ltd|Corp|Pharma|Industries|LLC|GmbH)",
+     "Industry-funded study"),
+    (r"reports?\s+(?:grants?|funding|fees?|honoraria|personal\s+fees?)\s+(?:from|received\s+from)",
+     "Author reports industry payments"),
+    (r"(?:served?|acts?|work(?:s|ed)?|consult\w*)\s+(?:as\s+(?:a\s+)?)?(?:advisor|consultant|speaker)\s+for",
+     "Author has advisory or speaker role"),
+    (r"(?:owns?|holds?|has)\s+(?:equity|stock|shares?|patent)\s+in",
+     "Author holds equity or patent"),
+    (r"(?:honoraria|royalt(?:ies|y))\s+(?:received\s+)?from",
+     "Author receives honoraria or royalties"),
+]
+
+def run_coi_agent(text: str) -> list[dict]:
+    findings = []
+    has_coi_section = bool(re.search(
+        r"(?:conflict|competing)\s+of\s+interest|funding\s+(?:source|statement|acknowledgement)|author\s+contribution",
+        text, re.I,
+    ))
+    has_no_conflict = any(re.search(p, text, re.I) for p in _COI_NO_CONFLICT)
+    industry_hits = [(label, re.search(p, text, re.I).group(0)[:100])
+                     for p, label in _COI_INDUSTRY_SIGNALS
+                     if re.search(p, text, re.I)]
+
+    if has_coi_section and has_no_conflict:
+        findings.append(dict(
+            severity="info", agent="COI Detector",
+            title="No competing interests declared",
+            detail="Paper includes an explicit conflict of interest statement with no conflicts disclosed.",
+            flag=False,
+        ))
+    elif not has_coi_section:
+        findings.append(dict(
+            severity="medium", agent="COI Detector",
+            title="No COI / funding disclosure section found",
+            detail="Paper does not appear to contain a conflict of interest or funding disclosure section. "
+                   "ICMJE guidelines require explicit disclosure from all authors.",
+            flag=True,
+        ))
+    else:
+        findings.append(dict(
+            severity="low", agent="COI Detector",
+            title="COI section present but no explicit 'no conflict' statement",
+            detail="Paper has a funding or disclosure section but does not clearly state competing interests.",
+            flag=True,
+        ))
+
+    for label, snippet in industry_hits:
+        findings.append(dict(
+            severity="medium", agent="COI Detector",
+            title=f"Potential conflict: {label}",
+            detail=f'Detected: "{snippet}". Human review recommended to assess materiality.',
+            flag=True,
+        ))
+
+    if not findings:
+        findings.append(dict(
+            severity="info", agent="COI Detector",
+            title="No conflict signals detected",
+            detail="No industry funding or author conflict patterns were identified in the text.",
+            flag=False,
+        ))
+    return findings
+
+
+# ── Confidence Scoring ────────────────────────────────────────────────────────
+def compute_confidence(all_findings: list[dict]) -> tuple[float, str]:
+    """Step(38) formula: start 1.0, penalise flagged findings by severity."""
+    score = 1.0
+    score -= sum(0.4 for f in all_findings if f.get("flag") and f.get("severity") == "high")
+    score -= sum(0.2 for f in all_findings if f.get("flag") and f.get("severity") == "medium")
+    score -= sum(0.05 for f in all_findings if f.get("flag") and f.get("severity") == "low")
+    score = max(0.0, score)
+    label = "high" if score >= 0.7 else ("medium" if score >= 0.4 else "low")
+    return round(score, 2), label
+
+
+# ── PDF Export ────────────────────────────────────────────────────────────────
+def export_pdf(paper_name: str, all_findings: list[dict], repro_score: int,
+               repl_score: int, repl_prob: float, confidence_label: str,
+               study_type: str, std_name: str, pls: str) -> bytes:
+    try:
+        import io as _io
+        import datetime
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+        from reportlab.lib import colors
+
+        buf = _io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4,
+                                leftMargin=2.5*cm, rightMargin=2.5*cm,
+                                topMargin=2.5*cm, bottomMargin=2.5*cm)
+        styles = getSampleStyleSheet()
+        title_s = ParagraphStyle("t", parent=styles["Title"], fontSize=16, spaceAfter=6, alignment=TA_CENTER)
+        h2_s = ParagraphStyle("h2", parent=styles["Heading2"], fontSize=12, spaceBefore=12, spaceAfter=4)
+        body_s = ParagraphStyle("b", parent=styles["Normal"], fontSize=9, leading=14, spaceAfter=4)
+        small_s = ParagraphStyle("sm", parent=styles["Normal"], fontSize=8, leading=12, textColor=colors.grey)
+        sev_colors = {"high": "#ef4444", "medium": "#f59e0b", "low": "#3b82f6", "info": "#9ca3af"}
+
+        story = [
+            Paragraph("PEERLESS.AI — Automated Peer Review Report", title_s),
+            Paragraph(
+                "<i>This report is generated by AI for informational purposes only. "
+                "All findings require human expert review before any action is taken. "
+                "PEERLESS.AI surfaces potential concerns — it does not make definitive judgements.</i>",
+                small_s,
+            ),
+            Spacer(1, 0.3*cm),
+            HRFlowable(width="100%", thickness=1, color=colors.HexColor("#6366f1")),
+            Spacer(1, 0.2*cm),
+            Paragraph(f"Paper: {paper_name}", body_s),
+            Paragraph(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M UTC')}", body_s),
+            Paragraph(f"Study type detected: {study_type} ({std_name} standard)", body_s),
+            Paragraph(f"Overall confidence: {confidence_label.upper()}", body_s),
+            Paragraph(f"Reproducibility score: {repro_score}/5  |  Replication probability: {repl_prob:.0%}", body_s),
+            Spacer(1, 0.4*cm),
+        ]
+
+        flagged = [f for f in all_findings if f.get("flag")]
+        story.append(Paragraph(f"Findings Summary", h2_s))
+        story.append(Paragraph(
+            f"Total findings: {len(all_findings)} &nbsp;|&nbsp; "
+            f"Flagged: {len(flagged)} &nbsp;|&nbsp; "
+            f"High: {sum(1 for f in flagged if f['severity']=='high')} &nbsp;|&nbsp; "
+            f"Medium: {sum(1 for f in flagged if f['severity']=='medium')}",
+            body_s,
+        ))
+        story.append(Spacer(1, 0.3*cm))
+
+        agents_order = ["Statistical Integrity", "Citation Verifier", "Reproducibility",
+                        "Methodology Auditor", "Replication Predictor", "COI Detector",
+                        "Plain Language Summary"]
+        current_agent = None
+        for f in sorted(all_findings, key=lambda x: agents_order.index(x["agent"])
+                        if x["agent"] in agents_order else 99):
+            if f["agent"] != current_agent:
+                current_agent = f["agent"]
+                story.append(Paragraph(current_agent, h2_s))
+            sev = f.get("severity", "info")
+            hex_c = sev_colors.get(sev, "#9ca3af")
+            story.append(Paragraph(
+                f'<font color="{hex_c}">[{sev.upper()}]</font> <b>{f["title"]}</b>',
+                body_s,
+            ))
+            story.append(Paragraph(f["detail"], small_s))
+            story.append(Spacer(1, 0.15*cm))
+
+        if pls:
+            story.append(Paragraph("Plain Language Summary", h2_s))
+            for para in pls.split("\n\n"):
+                if para.strip():
+                    story.append(Paragraph(para.strip(), body_s))
+
+        story.append(Spacer(1, 0.4*cm))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+        story.append(Paragraph(
+            "DISCLAIMER: This report is AI-generated and must not be used as the sole basis for editorial "
+            "decisions. All flagged concerns require verification by qualified human reviewers.",
+            small_s,
+        ))
+        doc.build(story)
+        return buf.getvalue()
+    except Exception as e:
+        return b""
+
+
 # ── Render finding card ───────────────────────────────────────────────────────
 def render_finding(f: dict):
     sev = f.get("severity", "info")
@@ -312,13 +617,16 @@ def main():
 | Statistical Integrity | Always on |
 | Citation Verifier | Always on |
 | Reproducibility Checker | Always on |
+| Methodology Auditor | Always on |
+| Replication Predictor | Always on |
+| COI Detector | Always on |
 | Plain Language Summary | Needs API key |
 """)
         st.markdown("---")
         st.markdown("### How it works")
         st.markdown("""
 1. Upload a research paper PDF
-2. Four agents analyse it in parallel
+2. Seven agents analyse it sequentially
 3. Review flagged concerns
 4. All findings require **human approval** before any action
 """)
@@ -332,19 +640,19 @@ def main():
         st.info("Upload a PDF research paper above to start automated peer review.")
         with st.expander("What does PEERLESS.AI check?"):
             st.markdown("""
-**Statistical Integrity Agent**
-- GRIM test: checks if reported means are arithmetically possible given the sample size
-- Statcheck: recomputes p-values from test statistics (t, F, chi-squared) and compares to reported values
+**Statistical Integrity** — GRIM test + statcheck p-value recomputation (t, F, chi-squared)
 
-**Citation Verifier Agent**
-- Extracts all DOIs from the paper
-- Queries Crossref API to confirm each DOI resolves to a real publication
+**Citation Verifier** — DOI extraction + Crossref lookup; flags unresolved or mistyped references
 
-**Reproducibility Checker Agent**
-- Scores the paper 0–5 across five dimensions: data availability, code availability, pre-registration, power analysis, and materials detail
+**Reproducibility Checker** — Scores 0–5: data availability, code, pre-registration, power analysis, materials
 
-**Plain Language Summary Agent**
-- Uses Groq LLaMA-3.3 to generate a jargon-free summary for non-expert reviewers
+**Methodology Auditor** — Detects study type (RCT/Observational/Meta-analysis/Animal) and checks CONSORT / STROBE / PRISMA / ARRIVE compliance
+
+**Replication Predictor** — Scores 7 evidence-based features that predict successful replication
+
+**COI Detector** — Scans for conflict of interest disclosures and industry funding signals
+
+**Plain Language Summary** — Groq LLaMA-3.3 generates a jargon-free summary for non-expert reviewers
 
 *All findings are flagged for human review — PEERLESS.AI never makes definitive accusations.*
 """)
@@ -368,56 +676,81 @@ def main():
 
     prog = st.progress(0, text="Running agents...")
 
-    with st.spinner("Agent 1/4 — Statistical Integrity (GRIM + statcheck)..."):
+    with st.spinner("Agent 1/7 — Statistical Integrity (GRIM + statcheck)..."):
         stat_findings = run_statistical_agent(text)
-    prog.progress(25, text="Agent 2/4 — Citation Verifier...")
+    prog.progress(14, text="Agent 2/7 — Citation Verifier...")
 
-    with st.spinner("Agent 2/4 — Citation Verifier (Crossref)..."):
+    with st.spinner("Agent 2/7 — Citation Verifier (Crossref)..."):
         cite_findings = run_citation_agent(text)
-    prog.progress(50, text="Agent 3/4 — Reproducibility Checker...")
+    prog.progress(28, text="Agent 3/7 — Reproducibility Checker...")
 
-    with st.spinner("Agent 3/4 — Reproducibility Checker..."):
+    with st.spinner("Agent 3/7 — Reproducibility Checker..."):
         repro_score, repro_findings = run_reproducibility_agent(text)
-    prog.progress(75, text="Agent 4/4 — Plain Language Summary...")
+    prog.progress(43, text="Agent 4/7 — Methodology Auditor...")
 
-    with st.spinner("Agent 4/4 — Plain Language Summary (Groq LLaMA)..."):
+    with st.spinner("Agent 4/7 — Methodology Auditor (CONSORT / STROBE / PRISMA)..."):
+        study_type, std_name, meth_findings = run_methodology_agent(text)
+    prog.progress(57, text="Agent 5/7 — Replication Predictor...")
+
+    with st.spinner("Agent 5/7 — Replication Predictor..."):
+        repl_score, repl_prob, repl_findings = run_replication_agent(text)
+    prog.progress(71, text="Agent 6/7 — COI Detector...")
+
+    with st.spinner("Agent 6/7 — COI Detector..."):
+        coi_findings = run_coi_agent(text)
+    prog.progress(86, text="Agent 7/7 — Plain Language Summary...")
+
+    with st.spinner("Agent 7/7 — Plain Language Summary (Groq LLaMA)..."):
         pls = run_pls_agent(text)
     prog.progress(100, text="Done")
 
-    all_findings = stat_findings + cite_findings + repro_findings
+    all_findings = (stat_findings + cite_findings + repro_findings +
+                    meth_findings + repl_findings + coi_findings)
     flagged = [f for f in all_findings if f.get("flag")]
     high = sum(1 for f in flagged if f["severity"] == "high")
     medium = sum(1 for f in flagged if f["severity"] == "medium")
+    conf_score, conf_label = compute_confidence(all_findings)
 
-    if repro_score >= 4:
-        repro_color = "green"
-    elif repro_score >= 2:
-        repro_color = "orange"
-    else:
-        repro_color = "red"
+    repro_color = "green" if repro_score >= 4 else ("orange" if repro_score >= 2 else "red")
+    conf_color  = "green" if conf_label == "high" else ("orange" if conf_label == "medium" else "red")
 
     st.markdown("### Results")
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Total Findings", len(all_findings))
     c2.metric("Flagged Issues", len(flagged))
     c3.metric("High Severity", high)
     c4.metric("Medium Severity", medium)
     c5.metric("Reproducibility", f"{repro_score}/5")
+    c6.metric("Confidence", conf_label.upper())
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Statistical Integrity", "Citation Verifier",
-        "Reproducibility", "Plain Language Summary"
+    pdf_bytes = export_pdf(
+        uploaded.name, all_findings, repro_score, repl_score, repl_prob,
+        conf_label, study_type, std_name, pls,
+    )
+    if pdf_bytes:
+        st.download_button(
+            label="Download PDF Report",
+            data=pdf_bytes,
+            file_name=f"peerless_report_{uploaded.name.replace('.pdf','')}.pdf",
+            mime="application/pdf",
+        )
+
+    _SEV_ORDER = ["high", "medium", "low", "info"]
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "Statistical Integrity", "Citation Verifier", "Reproducibility",
+        "Methodology Auditor", "Replication Predictor", "COI Detector",
+        "Plain Language Summary",
     ])
 
     with tab1:
         st.markdown(f"**{len(stat_findings)} finding(s)**")
-        for f in sorted(stat_findings, key=lambda x: ["high", "medium", "low", "info"].index(x["severity"])):
+        for f in sorted(stat_findings, key=lambda x: _SEV_ORDER.index(x["severity"])):
             render_finding(f)
 
     with tab2:
         n_dois = len(extract_dois(text))
         st.markdown(f"**{n_dois} DOI(s) found &nbsp;·&nbsp; {len(cite_findings)} finding(s)**", unsafe_allow_html=True)
-        for f in sorted(cite_findings, key=lambda x: ["high", "medium", "low", "info"].index(x["severity"])):
+        for f in sorted(cite_findings, key=lambda x: _SEV_ORDER.index(x["severity"])):
             render_finding(f)
 
     with tab3:
@@ -435,6 +768,36 @@ def main():
             render_finding(f)
 
     with tab4:
+        st.markdown(f"#### Study type detected: **{study_type}** → applying **{std_name}** checklist")
+        passed = sum(1 for f in meth_findings if not f.get("flag"))
+        total  = len(meth_findings)
+        st.markdown(f"**{passed}/{total} checklist items present**")
+        for f in meth_findings:
+            render_finding(f)
+
+    with tab5:
+        repl_color = "green" if repl_score >= 5 else ("orange" if repl_score >= 3 else "red")
+        filled_r = "█" * repl_score
+        empty_r  = "░" * (7 - repl_score)
+        st.markdown(
+            f"#### Replication Risk Score: "
+            f"<span style='color:{repl_color};font-size:1.3em'><b>{repl_score}/7</b></span>"
+            f"&nbsp; <span style='letter-spacing:3px;font-size:1.2em'>{filled_r}{empty_r}</span>"
+            f"<br><small>Estimated replication probability: <b>{repl_prob:.0%}</b> "
+            f"(based on Open Science Collaboration, 2015 base rates)</small>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("")
+        for f in repl_findings:
+            render_finding(f)
+
+    with tab6:
+        coi_flagged = sum(1 for f in coi_findings if f.get("flag"))
+        st.markdown(f"**{coi_flagged} concern(s) flagged &nbsp;·&nbsp; {len(coi_findings)} finding(s)**", unsafe_allow_html=True)
+        for f in sorted(coi_findings, key=lambda x: _SEV_ORDER.index(x["severity"])):
+            render_finding(f)
+
+    with tab7:
         st.markdown("#### Plain Language Summary")
         st.markdown(pls)
 
