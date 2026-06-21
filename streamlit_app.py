@@ -21,14 +21,162 @@ SMART_MODEL = "llama-3.3-70b-versatile"
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-.finding-high   {border-left:4px solid #ef4444;background:#fef2f2;padding:12px 16px;border-radius:6px;margin:6px 0}
-.finding-medium {border-left:4px solid #f59e0b;background:#fffbeb;padding:12px 16px;border-radius:6px;margin:6px 0}
-.finding-low    {border-left:4px solid #3b82f6;background:#eff6ff;padding:12px 16px;border-radius:6px;margin:6px 0}
-.finding-info   {border-left:4px solid #9ca3af;background:#f9fafb;padding:12px 16px;border-radius:6px;margin:6px 0}
-.badge {padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;color:white}
-.badge-high{background:#ef4444}.badge-medium{background:#f59e0b}
-.badge-low{background:#3b82f6}.badge-info{background:#9ca3af}
-h1{margin-bottom:0!important}
+/* ── Global ── */
+html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
+
+/* ── Hero banner ── */
+.hero {
+    background: linear-gradient(135deg, #0C2340 0%, #1565C0 60%, #1E88E5 100%);
+    border-radius: 14px;
+    padding: 32px 36px 28px;
+    margin-bottom: 24px;
+    color: white;
+}
+.hero h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin: 0 0 6px 0;
+    color: white !important;
+}
+.hero p {
+    font-size: 0.97rem;
+    color: #A8C5D8;
+    margin: 0;
+    line-height: 1.6;
+}
+.hero .tag {
+    display: inline-block;
+    background: rgba(168,197,216,0.2);
+    border: 1px solid rgba(168,197,216,0.4);
+    color: #A8C5D8;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin: 10px 4px 0 0;
+}
+
+/* ── Finding cards ── */
+.finding-high {
+    border-left: 4px solid #DC2626;
+    background: #FEF2F2;
+    padding: 13px 16px;
+    border-radius: 8px;
+    margin: 8px 0;
+    box-shadow: 0 1px 4px rgba(220,38,38,0.08);
+}
+.finding-medium {
+    border-left: 4px solid #D97706;
+    background: #FFFBEB;
+    padding: 13px 16px;
+    border-radius: 8px;
+    margin: 8px 0;
+    box-shadow: 0 1px 4px rgba(217,119,6,0.08);
+}
+.finding-low {
+    border-left: 4px solid #1565C0;
+    background: #EFF6FF;
+    padding: 13px 16px;
+    border-radius: 8px;
+    margin: 8px 0;
+    box-shadow: 0 1px 4px rgba(21,101,192,0.08);
+}
+.finding-info {
+    border-left: 4px solid #9DBFCA;
+    background: #F4F8FC;
+    padding: 13px 16px;
+    border-radius: 8px;
+    margin: 8px 0;
+    box-shadow: 0 1px 3px rgba(13,31,45,0.05);
+}
+
+/* ── Severity badges ── */
+.badge {
+    padding: 3px 9px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 800;
+    color: white;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.badge-high   { background: #DC2626; }
+.badge-medium { background: #D97706; }
+.badge-low    { background: #1565C0; }
+.badge-info   { background: #9DBFCA; color: #0C2340; }
+
+/* ── Metric cards ── */
+[data-testid="metric-container"] {
+    background: white;
+    border: 1px solid #D6E8F4;
+    border-radius: 10px;
+    padding: 14px 18px !important;
+    box-shadow: 0 1px 4px rgba(13,31,45,0.06);
+}
+[data-testid="metric-container"] label {
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    color: #1565C0 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    font-size: 1.6rem !important;
+    font-weight: 800 !important;
+    color: #0C2340 !important;
+}
+
+/* ── Disclaimer footer ── */
+.disclaimer {
+    background: #D6E8F4;
+    border-left: 4px solid #1565C0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.82rem;
+    color: #0C2340;
+    margin-top: 20px;
+}
+
+/* ── Sidebar ── */
+section[data-testid="stSidebar"] {
+    background: #0C2340 !important;
+}
+section[data-testid="stSidebar"] * {
+    color: #A8C5D8 !important;
+}
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] strong {
+    color: white !important;
+}
+section[data-testid="stSidebar"] table {
+    font-size: 0.83rem;
+}
+
+/* ── Tabs ── */
+[data-testid="stTabs"] button {
+    font-weight: 600;
+    font-size: 0.82rem;
+}
+[data-testid="stTabs"] button[aria-selected="true"] {
+    color: #1565C0 !important;
+    border-bottom-color: #1565C0 !important;
+}
+
+/* ── Upload zone ── */
+[data-testid="stFileUploader"] {
+    border: 2px dashed #9DBFCA !important;
+    border-radius: 10px;
+    background: white;
+}
+
+/* ── Progress bar ── */
+[data-testid="stProgress"] > div > div {
+    background: linear-gradient(90deg, #1565C0, #1E88E5) !important;
+    border-radius: 4px;
+}
+
+h1 { margin-bottom: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -657,34 +805,42 @@ def render_finding(f: dict):
 
 # ── App ───────────────────────────────────────────────────────────────────────
 def main():
-    st.markdown("# PEERLESS.AI")
-    st.markdown("**Multi-agent scientific peer-review assistant** &nbsp;·&nbsp; National AI Hackathon '26 &nbsp;·&nbsp; Atom Camp / FAST NUCES Islamabad", unsafe_allow_html=True)
-    st.divider()
+    st.markdown("""
+<div class="hero">
+  <h1>PEERLESS.AI</h1>
+  <p>Multi-agent scientific peer-review assistant &mdash; flags statistical errors, fake citations,
+  reproducibility gaps, and methodology issues in seconds.</p>
+  <span class="tag">National AI Hackathon '26</span>
+  <span class="tag">Atom Camp</span>
+  <span class="tag">FAST NUCES Islamabad</span>
+</div>
+""", unsafe_allow_html=True)
 
     with st.sidebar:
-        st.markdown("### Agents")
+        st.markdown("### PEERLESS.AI")
+        st.markdown("**7 Agents**")
         st.markdown("""
-| Agent | Status |
+| Agent | |
 |-------|--------|
-| Statistical Integrity | Always on |
-| Citation Verifier | Always on |
-| Reproducibility Checker | Always on |
-| Methodology Auditor | Always on |
-| Replication Predictor | Always on |
-| COI Detector | Always on |
-| Plain Language Summary | Needs API key |
+| Statistical Integrity | on |
+| Citation Verifier | on |
+| Reproducibility | on |
+| Methodology Auditor | on |
+| Replication Predictor | on |
+| COI Detector | on |
+| Plain Language Summary | LLM |
 """)
         st.markdown("---")
-        st.markdown("### How it works")
+        st.markdown("**How it works**")
         st.markdown("""
-1. Upload a research paper PDF
-2. Seven agents analyse it sequentially
+1. Upload PDF or DOCX
+2. 7 agents run sequentially
 3. Review flagged concerns
-4. All findings require **human approval** before any action
+4. All findings need human review
 """)
         st.markdown("---")
         llm_ok = bool(GROQ_KEY)
-        st.markdown(f"**LLM:** {'Active (Groq LLaMA-3.3)' if llm_ok else 'No key — stat checks still run'}")
+        st.markdown(f"**LLM status:** {'Active' if llm_ok else 'No key — stat checks still run'}")
 
     uploaded = st.file_uploader("Upload a research paper (PDF or DOCX, max 20 MB)", type=["pdf", "docx"], label_visibility="visible")
 
@@ -857,9 +1013,12 @@ def main():
         st.markdown("#### Plain Language Summary")
         st.markdown(pls)
 
-    st.divider()
-    st.caption("All findings require human expert review before any action is taken. "
-               "PEERLESS.AI surfaces potential concerns — it does not make definitive judgements.")
+    st.markdown("""
+<div class="disclaimer">
+  All findings require human expert review before any action is taken.
+  PEERLESS.AI surfaces potential concerns — it does not make definitive judgements.
+</div>
+""", unsafe_allow_html=True)
 
 
 main()
