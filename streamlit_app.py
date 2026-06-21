@@ -32,15 +32,38 @@ h1{margin-bottom:0!important}
 </style>
 """, unsafe_allow_html=True)
 
-# ── PDF ───────────────────────────────────────────────────────────────────────
-def extract_text(pdf_bytes: bytes) -> str:
+# ── File text extraction ──────────────────────────────────────────────────────
+def _extract_pdf(data: bytes) -> str:
     try:
         from pypdf import PdfReader
-        reader = PdfReader(io.BytesIO(pdf_bytes))
+        reader = PdfReader(io.BytesIO(data))
         return "\n".join(p.extract_text() or "" for p in reader.pages)
     except Exception as e:
         st.error(f"PDF parse error: {e}")
         return ""
+
+def _extract_docx(data: bytes) -> str:
+    try:
+        import docx as _docx
+        doc = _docx.Document(io.BytesIO(data))
+        parts = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                parts.append(para.text)
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell.text.strip():
+                        parts.append(cell.text)
+        return "\n".join(parts)
+    except Exception as e:
+        st.error(f"DOCX parse error: {e}")
+        return ""
+
+def extract_text(data: bytes, filename: str = "") -> str:
+    if filename.lower().endswith(".docx"):
+        return _extract_docx(data)
+    return _extract_pdf(data)
 
 # ── GRIM ─────────────────────────────────────────────────────────────────────
 def grim_check(mean_str: str, n: int) -> bool:
@@ -663,10 +686,10 @@ def main():
         llm_ok = bool(GROQ_KEY)
         st.markdown(f"**LLM:** {'Active (Groq LLaMA-3.3)' if llm_ok else 'No key — stat checks still run'}")
 
-    uploaded = st.file_uploader("Upload a research paper (PDF, max 20 MB)", type=["pdf"], label_visibility="visible")
+    uploaded = st.file_uploader("Upload a research paper (PDF or DOCX, max 20 MB)", type=["pdf", "docx"], label_visibility="visible")
 
     if uploaded and uploaded.size > 20 * 1024 * 1024:
-        st.error("File exceeds 20 MB limit. Please upload a smaller PDF.")
+        st.error("File exceeds 20 MB limit. Please upload a smaller file.")
         return
 
     if not uploaded:
@@ -698,11 +721,11 @@ def main():
 
     pdf_bytes = uploaded.read()
 
-    with st.spinner("Extracting text from PDF..."):
-        text = extract_text(pdf_bytes)
+    with st.spinner("Extracting text..."):
+        text = extract_text(pdf_bytes, uploaded.name)
 
     if not text.strip():
-        st.error("Could not extract text. Make sure the PDF is text-based (not a scanned image).")
+        st.error("Could not extract text. For PDFs, make sure the file is text-based (not a scanned image). For DOCX, ensure the file is not password-protected.")
         return
 
     st.caption(f"Extracted {len(text):,} characters from {uploaded.name}")
