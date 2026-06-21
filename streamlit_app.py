@@ -693,7 +693,7 @@ def main():
         return
 
     if not uploaded:
-        st.info("Upload a PDF research paper above to start automated peer review.")
+        st.info("Upload a PDF or DOCX research paper above to start automated peer review.")
         with st.expander("What does PEERLESS.AI check?"):
             st.markdown("""
 **Statistical Integrity** — GRIM test + statcheck p-value recomputation (t, F, chi-squared)
