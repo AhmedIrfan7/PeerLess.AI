@@ -179,27 +179,49 @@ def run_citation_agent(text: str) -> list[dict]:
                      detail="No DOI patterns (10.xxxx/...) were detected in the text.",
                      flag=False)]
     findings: list[dict] = []
+    crossref_available = True
     for doi in dois[:15]:
         try:
             r = requests.get(
                 f"https://api.crossref.org/works/{doi}",
                 headers={"User-Agent": f"PEERLESS.AI/1.0 (mailto:{CROSSREF_MAILTO})"},
-                timeout=5,
+                timeout=8,
             )
             if r.status_code == 200:
-                title = (r.json()["message"].get("title") or [""])[0]
-                findings.append(dict(
-                    severity="info", agent="Citation Verifier",
-                    title=f"DOI verified: {doi}",
-                    detail=f"Title: {title[:120] or '(no title)'}",
-                    flag=False,
-                ))
+                data = r.json().get("message", {})
+                title = (data.get("title") or [""])[0]
+                retracted = (
+                    any(u.get("type") == "retraction" for u in data.get("update-to", []))
+                    or "RETRACTED" in title.upper()
+                )
+                if retracted:
+                    findings.append(dict(
+                        severity="high", agent="Citation Verifier",
+                        title=f"RETRACTED paper cited: {doi}",
+                        detail=f"Title: {title[:120]}. This paper has been retracted. Citing retracted work can invalidate conclusions.",
+                        flag=True,
+                    ))
+                else:
+                    findings.append(dict(
+                        severity="info", agent="Citation Verifier",
+                        title=f"DOI verified: {doi}",
+                        detail=f"Title: {title[:120] or '(no title)'}",
+                        flag=False,
+                    ))
             elif r.status_code == 404:
                 findings.append(dict(
                     severity="high", agent="Citation Verifier",
                     title=f"DOI not found: {doi}",
                     detail="Crossref returned 404. This reference may be fabricated, mistyped, or unregistered.",
                     flag=True,
+                ))
+            elif r.status_code == 429:
+                crossref_available = False
+                findings.append(dict(
+                    severity="low", agent="Citation Verifier",
+                    title=f"Crossref rate-limited — {doi} not checked",
+                    detail="Crossref returned 429 (too many requests). Add CROSSREF_MAILTO in secrets for a higher rate limit.",
+                    flag=False,
                 ))
             else:
                 findings.append(dict(
@@ -208,11 +230,18 @@ def run_citation_agent(text: str) -> list[dict]:
                     detail=f"Crossref returned HTTP {r.status_code}.",
                     flag=False,
                 ))
-        except Exception:
+        except requests.exceptions.Timeout:
             findings.append(dict(
                 severity="low", agent="Citation Verifier",
                 title=f"DOI check timed out: {doi}",
-                detail="Network request to Crossref timed out.",
+                detail="Crossref did not respond within 8 seconds. Statistical and reproducibility checks are unaffected.",
+                flag=False,
+            ))
+        except Exception as exc:
+            findings.append(dict(
+                severity="low", agent="Citation Verifier",
+                title=f"DOI check failed: {doi}",
+                detail=f"Network error: {type(exc).__name__}. Other agents continue normally.",
                 flag=False,
             ))
     return findings
@@ -634,7 +663,11 @@ def main():
         llm_ok = bool(GROQ_KEY)
         st.markdown(f"**LLM:** {'Active (Groq LLaMA-3.3)' if llm_ok else 'No key — stat checks still run'}")
 
-    uploaded = st.file_uploader("Upload a research paper (PDF)", type=["pdf"], label_visibility="visible")
+    uploaded = st.file_uploader("Upload a research paper (PDF, max 20 MB)", type=["pdf"], label_visibility="visible")
+
+    if uploaded and uploaded.size > 20 * 1024 * 1024:
+        st.error("File exceeds 20 MB limit. Please upload a smaller PDF.")
+        return
 
     if not uploaded:
         st.info("Upload a PDF research paper above to start automated peer review.")
