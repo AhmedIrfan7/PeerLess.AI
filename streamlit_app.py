@@ -269,6 +269,39 @@ section[data-testid="stSidebar"] table {
 }
 
 h1 { margin-bottom: 0 !important; }
+
+/* ── Fixed footer ── */
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: white;
+    border-top: 1px solid #D6E8F4;
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    z-index: 999;
+}
+.footer span {
+    font-size: 0.78rem;
+    color: #9DBFCA;
+}
+.footer strong { color: #1565C0; }
+.footer a {
+    font-size: 0.78rem;
+    color: #1565C0;
+    text-decoration: none;
+    font-weight: 600;
+    border: 1px solid #D6E8F4;
+    border-radius: 6px;
+    padding: 2px 10px;
+    background: #F4F8FC;
+}
+.footer a:hover { background: #D6E8F4; }
+/* Push main content up so footer doesn't overlap last element */
+.main .block-container { padding-bottom: 60px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -898,6 +931,13 @@ def render_finding(f: dict):
 # ── App ───────────────────────────────────────────────────────────────────────
 def main():
     st.markdown("""
+<div class="footer">
+  <span>Built by <strong>Ahmed Irfan</strong></span>
+  <a href="https://github.com/AhmedIrfan7/PeerLess.AI" target="_blank">GitHub</a>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown("""
 <div class="hero">
   <h1>PEERLESS.AI</h1>
   <p>Multi-agent scientific peer-review assistant &mdash; flags statistical errors, fake citations,
@@ -1211,19 +1251,6 @@ def main():
 </div>
 """, unsafe_allow_html=True)
 
-    st.markdown("""
-<div style="margin-top:32px;padding-top:16px;border-top:1px solid #D6E8F4;
-            display:flex;align-items:center;gap:16px">
-  <span style="font-size:0.8rem;color:#9DBFCA">
-    Built by <strong style="color:#1565C0">Ahmed Irfan</strong>
-  </span>
-  <a href="https://github.com/AhmedIrfan7/PeerLess.AI" target="_blank"
-     style="font-size:0.8rem;color:#1565C0;text-decoration:none;font-weight:600;
-            border:1px solid #D6E8F4;border-radius:6px;padding:3px 10px;background:white">
-    GitHub
-  </a>
-</div>
-""", unsafe_allow_html=True)
 
 
 main()
