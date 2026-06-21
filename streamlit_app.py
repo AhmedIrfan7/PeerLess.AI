@@ -930,19 +930,6 @@ def render_finding(f: dict):
 
 # ── App ───────────────────────────────────────────────────────────────────────
 def main():
-    st.markdown(
-        '<div style="position:fixed;bottom:0;left:0;width:100%;background:#ffffff;'
-        'border-top:1px solid #D6E8F4;padding:9px 28px;display:flex;align-items:center;'
-        'gap:16px;z-index:9999;">'
-        '<span style="font-size:0.78rem;color:#9DBFCA;">Built by '
-        '<strong style="color:#1565C0;">Ahmed Irfan</strong></span>'
-        '<a href="https://github.com/AhmedIrfan7/PeerLess.AI" target="_blank" '
-        'style="font-size:0.78rem;color:#1565C0;text-decoration:none;font-weight:600;'
-        'border:1px solid #D6E8F4;border-radius:6px;padding:2px 10px;background:#F4F8FC;">'
-        'GitHub</a>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
 
     st.markdown("""
 <div class="hero">
@@ -980,6 +967,11 @@ def main():
         st.markdown("---")
         llm_ok = bool(GROQ_KEY)
         st.markdown(f"**LLM status:** {'Active' if llm_ok else 'No key — stat checks still run'}")
+        st.markdown("---")
+        st.markdown(
+            "Built by **Ahmed Irfan**\n\n"
+            "[GitHub](https://github.com/AhmedIrfan7/PeerLess.AI)"
+        )
 
     uploaded = st.file_uploader("Upload a research paper (PDF or DOCX, max 20 MB)", type=["pdf", "docx"], label_visibility="visible")
 
