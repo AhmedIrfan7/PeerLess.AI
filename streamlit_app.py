@@ -930,12 +930,19 @@ def render_finding(f: dict):
 
 # ── App ───────────────────────────────────────────────────────────────────────
 def main():
-    st.markdown("""
-<div class="footer">
-  <span>Built by <strong>Ahmed Irfan</strong></span>
-  <a href="https://github.com/AhmedIrfan7/PeerLess.AI" target="_blank">GitHub</a>
-</div>
-""", unsafe_allow_html=True)
+    st.markdown(
+        '<div style="position:fixed;bottom:0;left:0;width:100%;background:#ffffff;'
+        'border-top:1px solid #D6E8F4;padding:9px 28px;display:flex;align-items:center;'
+        'gap:16px;z-index:9999;">'
+        '<span style="font-size:0.78rem;color:#9DBFCA;">Built by '
+        '<strong style="color:#1565C0;">Ahmed Irfan</strong></span>'
+        '<a href="https://github.com/AhmedIrfan7/PeerLess.AI" target="_blank" '
+        'style="font-size:0.78rem;color:#1565C0;text-decoration:none;font-weight:600;'
+        'border:1px solid #D6E8F4;border-radius:6px;padding:2px 10px;background:#F4F8FC;">'
+        'GitHub</a>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown("""
 <div class="hero">
