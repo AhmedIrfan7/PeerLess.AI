@@ -127,6 +127,98 @@ html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
     color: #0C2340 !important;
 }
 
+/* ── Score bars ── */
+.score-wrap { margin: 4px 0 16px; }
+.score-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.score-label { font-size: 0.78rem; font-weight: 600; color: #0C2340; width: 200px; flex-shrink: 0; }
+.score-track {
+    flex: 1; height: 8px; background: #D6E8F4; border-radius: 4px; overflow: hidden;
+}
+.score-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, #1565C0, #1E88E5);
+    transition: width 0.4s ease;
+}
+.score-fill.ok  { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.score-fill.warn{ background: linear-gradient(90deg, #d97706, #f59e0b); }
+.score-fill.bad { background: linear-gradient(90deg, #dc2626, #f87171); }
+.score-num { font-size: 0.78rem; font-weight: 700; color: #1565C0; width: 32px; text-align: right; }
+
+/* ── Big score display ── */
+.score-hero {
+    display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px;
+}
+.score-hero .num {
+    font-size: 2.4rem; font-weight: 800; color: #0C2340; line-height: 1;
+}
+.score-hero .denom { font-size: 1.1rem; color: #9DBFCA; font-weight: 600; }
+.score-hero .pct {
+    font-size: 0.9rem; font-weight: 600; padding: 3px 10px;
+    border-radius: 20px; margin-left: 6px;
+}
+.score-hero .pct.ok   { background: #dcfce7; color: #16a34a; }
+.score-hero .pct.warn { background: #fef3c7; color: #d97706; }
+.score-hero .pct.bad  { background: #fee2e2; color: #dc2626; }
+
+/* ── Summary verdict card ── */
+.verdict {
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 16px 0 20px;
+    display: flex; gap: 24px; align-items: flex-start;
+}
+.verdict.high   { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.verdict.medium { background: #fffbeb; border: 1px solid #fde68a; }
+.verdict.low    { background: #fef2f2; border: 1px solid #fecaca; }
+.verdict-label {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.8px; margin-bottom: 2px;
+}
+.verdict.high   .verdict-label { color: #16a34a; }
+.verdict.medium .verdict-label { color: #d97706; }
+.verdict.low    .verdict-label { color: #dc2626; }
+.verdict-title { font-size: 1.1rem; font-weight: 700; color: #0C2340; margin-bottom: 4px; }
+.verdict-sub   { font-size: 0.83rem; color: #64748b; }
+.verdict-stats { display: flex; gap: 16px; margin-top: 8px; }
+.vstat { text-align: center; }
+.vstat .vn { font-size: 1.4rem; font-weight: 800; color: #0C2340; line-height: 1; }
+.vstat .vl { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.5px; color: #9DBFCA; }
+
+/* ── Agent cards (empty state) ── */
+.agent-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px; margin: 20px 0;
+}
+.agent-card {
+    background: white; border: 1px solid #D6E8F4; border-radius: 10px;
+    padding: 16px; box-shadow: 0 1px 3px rgba(13,31,45,0.05);
+}
+.agent-card .ac-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #1565C0; color: white; font-size: 0.72rem; font-weight: 700;
+    margin-bottom: 8px;
+}
+.agent-card .ac-name { font-size: 0.88rem; font-weight: 700; color: #0C2340; margin-bottom: 3px; }
+.agent-card .ac-desc { font-size: 0.78rem; color: #64748b; line-height: 1.4; }
+
+/* ── Upload area ── */
+.upload-hint {
+    text-align: center; padding: 10px 0 6px;
+    font-size: 0.85rem; color: #64748b;
+}
+
+/* ── Tab section label ── */
+.tab-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0 8px; border-bottom: 1px solid #D6E8F4; margin-bottom: 14px;
+}
+.tab-header .th-title { font-size: 0.9rem; font-weight: 700; color: #0C2340; }
+.tab-header .th-count {
+    font-size: 0.78rem; font-weight: 600; padding: 3px 10px;
+    border-radius: 20px; background: #D6E8F4; color: #1565C0;
+}
+
 /* ── Disclaimer footer ── */
 .disclaimer {
     background: #D6E8F4;
@@ -849,28 +941,59 @@ def main():
         return
 
     if not uploaded:
-        st.info("Upload a PDF or DOCX research paper above to start automated peer review.")
-        with st.expander("What does PEERLESS.AI check?"):
-            st.markdown("""
-**Statistical Integrity** — GRIM test + statcheck p-value recomputation (t, F, chi-squared)
-
-**Citation Verifier** — DOI extraction + Crossref lookup; flags unresolved or mistyped references
-
-**Reproducibility Checker** — Scores 0–5: data availability, code, pre-registration, power analysis, materials
-
-**Methodology Auditor** — Detects study type (RCT/Observational/Meta-analysis/Animal) and checks CONSORT / STROBE / PRISMA / ARRIVE compliance
-
-**Replication Predictor** — Scores 7 evidence-based features that predict successful replication
-
-**COI Detector** — Scans for conflict of interest disclosures and industry funding signals
-
-**Plain Language Summary** — Groq LLaMA-3.3 generates a jargon-free summary for non-expert reviewers
-
-*All findings are flagged for human review — PEERLESS.AI never makes definitive accusations.*
-""")
+        st.markdown('<p class="upload-hint">Upload a PDF or DOCX to run all seven agents automatically.</p>', unsafe_allow_html=True)
+        st.markdown("""
+<div class="agent-grid">
+  <div class="agent-card">
+    <div class="ac-num">1</div>
+    <div class="ac-name">Statistical Integrity</div>
+    <div class="ac-desc">GRIM test + p-value recomputation for t, F, and chi-squared statistics</div>
+  </div>
+  <div class="agent-card">
+    <div class="ac-num">2</div>
+    <div class="ac-name">Citation Verifier</div>
+    <div class="ac-desc">Extracts every DOI and checks it live against Crossref — flags fakes and retractions</div>
+  </div>
+  <div class="agent-card">
+    <div class="ac-num">3</div>
+    <div class="ac-name">Reproducibility Checker</div>
+    <div class="ac-desc">Scores 0–5 across data availability, code, pre-registration, power analysis, materials</div>
+  </div>
+  <div class="agent-card">
+    <div class="ac-num">4</div>
+    <div class="ac-name">Methodology Auditor</div>
+    <div class="ac-desc">Detects study type and checks CONSORT / STROBE / PRISMA / ARRIVE compliance</div>
+  </div>
+  <div class="agent-card">
+    <div class="ac-num">5</div>
+    <div class="ac-name">Replication Predictor</div>
+    <div class="ac-desc">Scores 7 evidence-based features that predict whether results will replicate</div>
+  </div>
+  <div class="agent-card">
+    <div class="ac-num">6</div>
+    <div class="ac-name">COI Detector</div>
+    <div class="ac-desc">Scans for conflict of interest disclosures and industry funding signals</div>
+  </div>
+  <div class="agent-card">
+    <div class="ac-num">7</div>
+    <div class="ac-name">Plain Language Summary</div>
+    <div class="ac-desc">Groq LLaMA-3.3 writes a jargon-free summary for non-specialist readers</div>
+  </div>
+</div>
+<p style="font-size:0.78rem;color:#9DBFCA;text-align:center;margin-top:4px;">
+  All findings are flagged for human review — PEERLESS.AI never makes definitive accusations.
+</p>
+""", unsafe_allow_html=True)
         return
 
-    st.success(f"Loaded: **{uploaded.name}** ({uploaded.size / 1024:.1f} KB)")
+    st.markdown(
+        f'<div style="background:white;border:1px solid #D6E8F4;border-radius:10px;'
+        f'padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:12px">'
+        f'<span style="font-size:0.85rem;font-weight:600;color:#0C2340">{uploaded.name}</span>'
+        f'<span style="font-size:0.78rem;color:#9DBFCA;margin-left:auto">{uploaded.size/1024:.1f} KB</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
     if not st.button("Run Peer Review", type="primary", use_container_width=True):
         return
@@ -884,7 +1007,7 @@ def main():
         st.error("Could not extract text. For PDFs, make sure the file is text-based (not a scanned image). For DOCX, ensure the file is not password-protected.")
         return
 
-    st.caption(f"Extracted {len(text):,} characters from {uploaded.name}")
+    st.caption(f"{len(text):,} characters extracted")
 
     prog = st.progress(0, text="Running agents...")
 
@@ -923,17 +1046,32 @@ def main():
     medium = sum(1 for f in flagged if f["severity"] == "medium")
     conf_score, conf_label = compute_confidence(all_findings)
 
-    repro_color = "green" if repro_score >= 4 else ("orange" if repro_score >= 2 else "red")
-    conf_color  = "green" if conf_label == "high" else ("orange" if conf_label == "medium" else "red")
+    _conf_map = {"high": ("ok", "Looks Good", "No major integrity concerns detected."),
+                 "medium": ("warn", "Review Recommended", "Some concerns found that need human verification."),
+                 "low": ("bad", "Significant Issues", "Multiple integrity flags require careful human review.")}
+    _cls, _title, _sub = _conf_map[conf_label]
 
-    st.markdown("### Results")
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Total Findings", len(all_findings))
-    c2.metric("Flagged Issues", len(flagged))
-    c3.metric("High Severity", high)
-    c4.metric("Medium Severity", medium)
-    c5.metric("Reproducibility", f"{repro_score}/5")
-    c6.metric("Confidence", conf_label.upper())
+    st.markdown(f"""
+<div class="verdict {conf_label}">
+  <div style="flex:1">
+    <div class="verdict-label">Overall Confidence &mdash; {conf_label.upper()}</div>
+    <div class="verdict-title">{_title}</div>
+    <div class="verdict-sub">{_sub}</div>
+  </div>
+  <div class="verdict-stats">
+    <div class="vstat"><div class="vn" style="color:#dc2626">{high}</div><div class="vl">High</div></div>
+    <div class="vstat"><div class="vn" style="color:#d97706">{medium}</div><div class="vl">Medium</div></div>
+    <div class="vstat"><div class="vn" style="color:#1565C0">{len(flagged)-high-medium}</div><div class="vl">Low</div></div>
+    <div class="vstat"><div class="vn">{len(all_findings)}</div><div class="vl">Total</div></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Flagged Issues", len(flagged))
+    c2.metric("High Severity", high)
+    c3.metric("Reproducibility", f"{repro_score}/5")
+    c4.metric("Replication Est.", f"{repl_prob:.0%}")
 
     pdf_bytes = export_pdf(
         uploaded.name, all_findings, repro_score, repl_score, repl_prob,
@@ -954,64 +1092,117 @@ def main():
         "Plain Language Summary",
     ])
 
+    def _tab_header(title, count_text):
+        st.markdown(
+            f'<div class="tab-header"><span class="th-title">{title}</span>'
+            f'<span class="th-count">{count_text}</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    def _score_bar(label, value, total, cls=""):
+        pct = int(value / total * 100)
+        st.markdown(
+            f'<div class="score-row">'
+            f'<span class="score-label">{label}</span>'
+            f'<div class="score-track"><div class="score-fill {cls}" style="width:{pct}%"></div></div>'
+            f'<span class="score-num">{value}/{total}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
     with tab1:
-        st.markdown(f"**{len(stat_findings)} finding(s)**")
+        flagged_stat = sum(1 for f in stat_findings if f.get("flag"))
+        _tab_header("Statistical Integrity", f"{flagged_stat} flagged of {len(stat_findings)}")
         for f in sorted(stat_findings, key=lambda x: _SEV_ORDER.index(x["severity"])):
             render_finding(f)
 
     with tab2:
         n_dois = len(extract_dois(text))
-        st.markdown(f"**{n_dois} DOI(s) found &nbsp;·&nbsp; {len(cite_findings)} finding(s)**", unsafe_allow_html=True)
+        flagged_cite = sum(1 for f in cite_findings if f.get("flag"))
+        _tab_header("Citation Verifier", f"{n_dois} DOIs checked · {flagged_cite} flagged")
         for f in sorted(cite_findings, key=lambda x: _SEV_ORDER.index(x["severity"])):
             render_finding(f)
 
     with tab3:
-        filled = "█" * repro_score
-        empty = "░" * (5 - repro_score)
-        st.markdown(
-            f"#### Reproducibility Score: "
-            f"<span style='color:{repro_color};font-size:1.3em'><b>{repro_score}/5</b></span> "
-            f"&nbsp; <span style='letter-spacing:3px;font-size:1.2em'>{filled}{empty}</span>",
-            unsafe_allow_html=True,
-        )
-        st.caption("Checks: data availability · code availability · pre-registration · power analysis · materials detail")
+        r_cls = "ok" if repro_score >= 4 else ("warn" if repro_score >= 2 else "bad")
+        r_pct_cls = r_cls
+        _tab_header("Reproducibility Checker", f"{repro_score}/5 dimensions present")
+        st.markdown(f"""
+<div class="score-hero">
+  <span class="num">{repro_score}</span><span class="denom">/5</span>
+  <span class="pct {r_pct_cls}">{'Good' if repro_score>=4 else ('Partial' if repro_score>=2 else 'Poor')}</span>
+</div>
+<div class="score-wrap">""", unsafe_allow_html=True)
+        repro_labels = ["Data Availability", "Code / Software", "Pre-registration", "Power Analysis", "Materials Detail"]
+        for i, f in enumerate(repro_findings):
+            lbl = repro_labels[i] if i < len(repro_labels) else f["title"]
+            ok = not f.get("flag")
+            _score_bar(lbl, 1 if ok else 0, 1, "ok" if ok else "bad")
+        st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("")
         for f in repro_findings:
             render_finding(f)
 
     with tab4:
-        st.markdown(f"#### Study type detected: **{study_type}** → applying **{std_name}** checklist")
         passed = sum(1 for f in meth_findings if not f.get("flag"))
-        total  = len(meth_findings)
-        st.markdown(f"**{passed}/{total} checklist items present**")
+        total_m = len(meth_findings)
+        _tab_header(f"Methodology Auditor — {std_name}", f"{passed}/{total_m} items present")
+        st.markdown(
+            f'<p style="font-size:0.83rem;color:#64748b;margin:0 0 12px">'
+            f'Study type detected: <strong style="color:#0C2340">{study_type}</strong>'
+            f'</p>',
+            unsafe_allow_html=True,
+        )
+        m_cls = "ok" if passed >= total_m * 0.8 else ("warn" if passed >= total_m * 0.5 else "bad")
+        st.markdown('<div class="score-wrap">', unsafe_allow_html=True)
+        for f in meth_findings:
+            _score_bar(f["title"].replace("Present","").replace("Missing","").replace(":","").strip(),
+                       0 if f.get("flag") else 1, 1,
+                       "ok" if not f.get("flag") else "bad")
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("")
         for f in meth_findings:
             render_finding(f)
 
     with tab5:
-        repl_color = "green" if repl_score >= 5 else ("orange" if repl_score >= 3 else "red")
-        filled_r = "█" * repl_score
-        empty_r  = "░" * (7 - repl_score)
-        st.markdown(
-            f"#### Replication Risk Score: "
-            f"<span style='color:{repl_color};font-size:1.3em'><b>{repl_score}/7</b></span>"
-            f"&nbsp; <span style='letter-spacing:3px;font-size:1.2em'>{filled_r}{empty_r}</span>"
-            f"<br><small>Estimated replication probability: <b>{repl_prob:.0%}</b> "
-            f"(based on Open Science Collaboration, 2015 base rates)</small>",
-            unsafe_allow_html=True,
-        )
+        repl_cls = "ok" if repl_score >= 5 else ("warn" if repl_score >= 3 else "bad")
+        _tab_header("Replication Predictor", f"{repl_score}/7 features · Est. {repl_prob:.0%} probability")
+        st.markdown(f"""
+<div class="score-hero">
+  <span class="num">{repl_score}</span><span class="denom">/7</span>
+  <span class="pct {repl_cls}">{repl_prob:.0%} est.</span>
+</div>
+<p style="font-size:0.78rem;color:#64748b;margin:4px 0 14px">
+  Estimated replication probability based on Open Science Collaboration (2015) base rates.
+</p>
+<div class="score-wrap">""", unsafe_allow_html=True)
+        repl_labels = ["Large sample (n≥100)", "Pre-registration", "Effect size reported",
+                       "Multiple-comparison correction", "Power analysis", "Open materials/code", "Confirmatory design"]
+        for i, f in enumerate(repl_findings):
+            lbl = repl_labels[i] if i < len(repl_labels) else f["title"]
+            ok = not f.get("flag")
+            _score_bar(lbl, 1 if ok else 0, 1, "ok" if ok else "bad")
+        st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("")
         for f in repl_findings:
             render_finding(f)
 
     with tab6:
         coi_flagged = sum(1 for f in coi_findings if f.get("flag"))
-        st.markdown(f"**{coi_flagged} concern(s) flagged &nbsp;·&nbsp; {len(coi_findings)} finding(s)**", unsafe_allow_html=True)
+        _tab_header("COI Detector", f"{coi_flagged} concern(s) flagged")
         for f in sorted(coi_findings, key=lambda x: _SEV_ORDER.index(x["severity"])):
             render_finding(f)
 
     with tab7:
-        st.markdown("#### Plain Language Summary")
-        st.markdown(pls)
+        _tab_header("Plain Language Summary", "AI-generated · Groq LLaMA-3.3")
+        if pls and not pls.startswith("_"):
+            st.markdown(
+                f'<div style="background:white;border:1px solid #D6E8F4;border-radius:10px;'
+                f'padding:20px 24px;line-height:1.7;font-size:0.92rem;color:#0C2340">{pls}</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(pls)
 
     st.markdown("""
 <div class="disclaimer">
